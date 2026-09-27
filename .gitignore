@@ -480,6 +480,10 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+# Runtime recipe uploads (source-owned static images remain tracked)
+src/RecipeManager.Web/wwwroot/uploads/recipes/*
+!src/RecipeManager.Web/wwwroot/uploads/recipes/.gitkeep
+
 # Local SQLite data and sidecar files
 *.db
 *.db-shm

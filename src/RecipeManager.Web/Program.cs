@@ -1,7 +1,12 @@
+using Microsoft.EntityFrameworkCore;
+using RecipeManager.Web.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
@@ -14,6 +19,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+// Uploaded images are created at runtime and are not in the build-time static asset manifest.
+app.UseStaticFiles();
 app.UseRouting();
 
 app.UseAuthorization();

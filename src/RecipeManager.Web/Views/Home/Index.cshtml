@@ -1,8 +1,6 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
-}
+@{ ViewData["Title"] = "Home"; }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<h1>Recipe Manager</h1>
+<p class="lead">Manage your cooking recipes, categories and ingredients.</p>
+<p>Start with a category, then create a recipe with cooking time, servings and instructions.</p>
+<a asp-controller="Recipes" asp-action="Index" class="btn btn-primary">View recipes</a>

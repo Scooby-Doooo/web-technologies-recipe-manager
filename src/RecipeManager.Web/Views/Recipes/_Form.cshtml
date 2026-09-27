@@ -1,0 +1,47 @@
+@model Recipe
+
+<div asp-validation-summary="All" class="text-danger"></div>
+<div class="mb-3">
+    <label asp-for="Title" class="form-label"></label>
+    <input asp-for="Title" class="form-control"  />
+    <span asp-validation-for="Title" class="text-danger"></span>
+</div>
+<div class="mb-3">
+    <label asp-for="Description" class="form-label"></label>
+    <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+    <span asp-validation-for="Description" class="text-danger"></span>
+</div>
+<div class="mb-3">
+    <label asp-for="CategoryId" class="form-label"></label>
+    <select asp-for="CategoryId" asp-items="ViewBag.CategoryId" class="form-select">
+        <option value="">Select a category</option>
+    </select>
+    <span asp-validation-for="CategoryId" class="text-danger"></span>
+</div>
+<div class="mb-3">
+    <label asp-for="CookingTimeMinutes" class="form-label"></label>
+    <input asp-for="CookingTimeMinutes" class="form-control" min="1" />
+    <span asp-validation-for="CookingTimeMinutes" class="text-danger"></span>
+</div>
+<div class="mb-3">
+    <label asp-for="Servings" class="form-label"></label>
+    <input asp-for="Servings" class="form-control" min="1" />
+    <span asp-validation-for="Servings" class="text-danger"></span>
+</div>
+<div class="mb-3">
+    <label asp-for="Instructions" class="form-label"></label>
+    <textarea asp-for="Instructions" class="form-control" rows="6"></textarea>
+    <span asp-validation-for="Instructions" class="text-danger"></span>
+</div>
+<div class="mb-3">
+    @if (!string.IsNullOrEmpty(Model.ImagePath))
+    {
+        <img src="@Model.ImagePath" alt="Current image for @Model.Title" class="img-fluid mb-2" style="max-height: 240px;" />
+    }
+    <label for="imageFile" class="form-label">Recipe image (optional)</label>
+    <input type="file" id="imageFile" name="imageFile" class="form-control"
+           accept=".jpg,.jpeg,.png,.webp" aria-describedby="imageHelp" />
+    <div id="imageHelp" class="form-text">JPG, JPEG, PNG or WEBP, up to 5 MB. Leave empty to keep the current image.</div>
+    @Html.ValidationMessage("imageFile", null, new { @class = "text-danger" })
+</div>
+<p class="form-text">Need a category? <a asp-controller="Categories" asp-action="Create">Create one</a> first.</p>

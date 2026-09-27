@@ -1,0 +1,32 @@
+@model Recipe
+@{ ViewData["Title"] = Model.Title; }
+
+<h1>@Model.Title</h1>
+@if (!string.IsNullOrEmpty(Model.ImagePath))
+{
+    <img src="@Model.ImagePath" alt="Image for @Model.Title" class="img-fluid mb-3" style="max-height: 400px;" />
+}
+<dl class="row">
+    <dt class="col-sm-3">Description</dt>
+    <dd class="col-sm-9 recipe-text">@Model.Description</dd>
+    <dt class="col-sm-3">Category</dt>
+    <dd class="col-sm-9">@Model.Category.Name</dd>
+    <dt class="col-sm-3">Cooking time (minutes)</dt>
+    <dd class="col-sm-9">@Model.CookingTimeMinutes</dd>
+    <dt class="col-sm-3">Servings</dt>
+    <dd class="col-sm-9">@Model.Servings</dd>
+    <dt class="col-sm-3">Instructions</dt>
+    <dd class="col-sm-9 recipe-text">@Model.Instructions</dd>
+</dl>
+@if (Model.RecipeIngredients.Any())
+{
+    <h2>Ingredients</h2>
+    <ul>
+    @foreach (var item in Model.RecipeIngredients)
+    {
+        <li>@item.Ingredient.Name: @item.Quantity @item.Unit</li>
+    }
+    </ul>
+}
+<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Edit</a>
+<a asp-action="Index" class="btn btn-outline-secondary">Back to list</a>
