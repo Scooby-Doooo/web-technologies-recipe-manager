@@ -1,32 +1,84 @@
 @model Recipe
-@{ ViewData["Title"] = Model.Title; }
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["BodyClass"] = "recipe-details-page";
+}
 
-<h1>@Model.Title</h1>
-@if (!string.IsNullOrEmpty(Model.ImagePath))
-{
-    <img src="@Model.ImagePath" alt="Image for @Model.Title" class="img-fluid mb-3" style="max-height: 400px;" />
-}
-<dl class="row">
-    <dt class="col-sm-3">Description</dt>
-    <dd class="col-sm-9 recipe-text">@Model.Description</dd>
-    <dt class="col-sm-3">Category</dt>
-    <dd class="col-sm-9">@Model.Category.Name</dd>
-    <dt class="col-sm-3">Cooking time (minutes)</dt>
-    <dd class="col-sm-9">@Model.CookingTimeMinutes</dd>
-    <dt class="col-sm-3">Servings</dt>
-    <dd class="col-sm-9">@Model.Servings</dd>
-    <dt class="col-sm-3">Instructions</dt>
-    <dd class="col-sm-9 recipe-text">@Model.Instructions</dd>
-</dl>
-@if (Model.RecipeIngredients.Any())
-{
-    <h2>Ingredients</h2>
-    <ul>
-    @foreach (var item in Model.RecipeIngredients)
-    {
-        <li>@item.Ingredient.Name: @item.Quantity @item.Unit</li>
-    }
-    </ul>
-}
-<a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Edit</a>
-<a asp-action="Index" class="btn btn-outline-secondary">Back to list</a>
+<article class="recipe-landing" aria-labelledby="recipe-title">
+    <a asp-action="Index" class="recipe-back-link">Back to recipes</a>
+
+    <div class="row g-4 g-lg-5 align-items-center recipe-overview">
+        <div class="col-lg-6">
+            @if (!string.IsNullOrEmpty(Model.ImagePath))
+            {
+                <img src="@Model.ImagePath" alt="Image for @Model.Title" class="recipe-photo img-fluid" />
+            }
+            else
+            {
+                <div class="recipe-photo recipe-photo-empty">
+                    <span>No photo added</span>
+                </div>
+            }
+        </div>
+        <div class="col-lg-6">
+            <p class="recipe-category">@Model.Category.Name</p>
+            <h1 id="recipe-title">@Model.Title</h1>
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
+            {
+                <p class="recipe-description recipe-text">@Model.Description</p>
+            }
+            <dl class="recipe-facts d-flex flex-wrap gap-4">
+                <div>
+                    <dt>Cooking time</dt>
+                    <dd>@Model.CookingTimeMinutes minutes</dd>
+                </div>
+                <div>
+                    <dt>Servings</dt>
+                    <dd>@Model.Servings</dd>
+                </div>
+            </dl>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="#instructions" class="btn btn-primary">Read instructions</a>
+                <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Edit recipe</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 g-lg-5 recipe-content">
+        <section id="ingredients" class="col-lg-4" aria-labelledby="ingredients-title">
+            <h2 id="ingredients-title">Ingredients</h2>
+            @if (Model.RecipeIngredients.Any())
+            {
+                <ul class="list-unstyled recipe-ingredients">
+                    @foreach (var item in Model.RecipeIngredients)
+                    {
+                        <li class="d-flex justify-content-between gap-3">
+                            <span>@item.Ingredient.Name</span>
+                            <span class="recipe-ingredient-amount">@item.Quantity @item.Unit</span>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="recipe-muted">No ingredients listed.</p>
+            }
+        </section>
+        <section id="instructions" class="col-lg-8" aria-labelledby="instructions-title">
+            <h2 id="instructions-title">Instructions</h2>
+            <div class="recipe-text recipe-instructions">@Model.Instructions</div>
+        </section>
+    </div>
+
+    <div class="recipe-bottom-actions d-flex flex-wrap gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Edit recipe</a>
+        <a asp-action="Index" class="btn btn-outline-secondary">Back to recipes</a>
+    </div>
+</article>
+
+<aside class="recipe-contact" aria-label="Recipe contact">
+    <div class="container d-flex flex-column flex-sm-row align-items-sm-center justify-content-sm-between gap-1">
+        <span class="recipe-contact-label">Contact</span>
+        <a href="mailto:vivtonichenko_dmytro@knu.ua">vivtonichenko_dmytro@knu.ua</a>
+    </div>
+</aside>
