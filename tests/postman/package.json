@@ -1,0 +1,22 @@
+{
+  "name": "recipe-manager-api-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QA1: local Postman collection tests for the C5 Recipe Manager API",
+  "scripts": {
+    "test": "newman run recipe-manager.postman_collection.json -e local.postman_environment.json --working-dir . --timeout-request 10000 --reporter-cli-no-console"
+  },
+  "devDependencies": {
+    "newman": "6.2.2"
+  },
+  "overrides": {
+    "flatted": "3.4.4",
+    "handlebars": "4.7.9",
+    "jose": "4.15.9",
+    "lodash": "4.18.1",
+    "node-forge": "1.4.0",
+    "qs": "6.16.0",
+    "underscore": "1.13.8",
+    "uuid": "11.1.1"
+  }
+}

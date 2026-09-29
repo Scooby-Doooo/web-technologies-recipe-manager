@@ -1,0 +1,2974 @@
+{
+  "info": {
+    "name": "Recipe Manager - QA1 API tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run the entire collection in order with the Local environment. Tests create unique records, use antiforgery and cookies, verify C5 CRUD and errors, then delete their own records. Runtime IDs and tokens exist only in local run variables. Use a local disposable database. Do not use --bail: cleanup must run even when an assertion fails."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "{",
+          "const baseUrl = String(pm.environment.get('baseUrl') || '').replace(/\\/$/, '');",
+          "const local = /^https?:\\/\\/(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?$/i.test(baseUrl);",
+          "pm.test('Environment targets a local Recipe Manager', function () { pm.expect(local).to.equal(true); });",
+          "if (!local) { pm.execution.skipRequest(); }",
+          "pm.variables.set('baseUrl', baseUrl);",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "{",
+          "const expectedStatus = Number(pm.variables.get('expectedStatus'));",
+          "pm.test('Expected HTTP status ' + expectedStatus, function () { pm.response.to.have.status(expectedStatus); });",
+          "if (expectedStatus === 204) {",
+          "    pm.test('Deletion response has no body', function () { pm.expect(pm.response.text()).to.equal(''); });",
+          "} else if (pm.variables.get('responseKind') === 'image') {",
+          "    pm.test('Uploaded PNG is served as an image', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('image/png'); });",
+          "} else if (pm.variables.get('responseKind') === 'unsupported-media') {",
+          "    // A routing-level 415 can have an empty body. If JSON is returned, verify it.",
+          "    if (pm.response.text().length > 0) {",
+          "        pm.test('Nonempty media-type error is JSON ProblemDetails', function () {",
+          "            pm.expect(pm.response.headers.get('Content-Type') || '').to.include('json');",
+          "            pm.expect(pm.response.json().status).to.equal(expectedStatus);",
+          "        });",
+          "    }",
+          "} else if (pm.variables.get('responseKind') !== 'missing-image') {",
+          "    pm.test('Response uses JSON media type', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.include('json'); });",
+          "    if (expectedStatus >= 400) {",
+          "        pm.test('ProblemDetails matches the error status', function () { pm.expect(pm.response.json().status).to.equal(expectedStatus); });",
+          "    }",
+          "}",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Setup and baseline",
+      "item": [
+        {
+          "name": "Get antiforgery token and initialize this run",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/antiforgery"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "",
+                  "pm.variables.set('runId', pm.variables.replaceIn('{{$guid}}'));",
+                  "['categoryId', 'ingredientId', 'recipeId'].forEach(key => pm.variables.set(key, 0));",
+                  "pm.variables.set('csrfToken', '');",
+                  "pm.variables.set('csrfHeaderName', 'RequestVerificationToken');",
+                  "pm.variables.set('imagePath', '/qa1-no-image');",
+                  "pm.variables.set('oldImagePath', '/qa1-no-image');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('A nonempty antiforgery token and header name are returned', function () {",
+                  "    pm.expect(typeof data.requestToken === 'string' && data.requestToken.length > 0 && typeof data.headerName === 'string' && data.headerName.length > 0).to.equal(true);",
+                  "});",
+                  "pm.test('Token response is not cacheable and a cookie is available', function () {",
+                  "    pm.expect((pm.response.headers.get('Cache-Control') || '').includes('no-store')).to.equal(true);",
+                  "    pm.expect(Boolean(pm.response.headers.get('Set-Cookie')) || Object.keys(pm.cookies.toObject()).length > 0).to.equal(true);",
+                  "});",
+                  "if (typeof data.requestToken === 'string' && typeof data.headerName === 'string') {",
+                  "    pm.variables.set('csrfToken', data.requestToken);",
+                  "    pm.variables.set('csrfHeaderName', data.headerName);",
+                  "}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read baseline categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/categories"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Collection is a JSON array of objects with positive IDs', function () {",
+                  "    pm.expect(Array.isArray(data) && data.every(item => item && Number.isInteger(item.id) && item.id > 0)).to.equal(true);",
+                  "});",
+                  "pm.variables.set('baseline_categories', JSON.stringify(data.slice().sort((a, b) => a.id - b.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read baseline ingredients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ingredients"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Collection is a JSON array of objects with positive IDs', function () {",
+                  "    pm.expect(Array.isArray(data) && data.every(item => item && Number.isInteger(item.id) && item.id > 0)).to.equal(true);",
+                  "});",
+                  "pm.variables.set('baseline_ingredients', JSON.stringify(data.slice().sort((a, b) => a.id - b.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read baseline recipes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Collection is a JSON array of objects with positive IDs', function () {",
+                  "    pm.expect(Array.isArray(data) && data.every(item => item && Number.isInteger(item.id) && item.id > 0)).to.equal(true);",
+                  "});",
+                  "pm.variables.set('baseline_recipes', JSON.stringify(data.slice().sort((a, b) => a.id - b.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Categories CRUD and validation",
+      "item": [
+        {
+          "name": "Reject empty category name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.test('Name validation is reported', function () { pm.expect(Object.prototype.hasOwnProperty.call(pm.response.json().errors, 'Name')).to.equal(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject overlong category name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{{longNameBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('longNameBody', JSON.stringify({name: 'N'.repeat(101)}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{categoryName}}\",\n  \"id\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 201);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('categoryName', 'QA1 category ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "if (pm.response.code === 201 && Number.isInteger(data.id) && data.id > 0) { pm.variables.set('categoryId', data.id); }",
+                  "pm.test('Created lookup contains generated ID and submitted name', function () {",
+                  "    pm.expect(Number.isInteger(data.id) && data.id > 0 && data.id !== 2147483647).to.equal(true);",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('categoryName'));",
+                  "});",
+                  "pm.test('Location identifies the new resource', function () { pm.expect(pm.response.headers.get('Location') || '').to.match(new RegExp('/api/categories/' + data.id + '$')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read created category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT update category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{categoryName}}\",\n  \"id\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('categoryName', 'QA1 PUT category ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST update category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{categoryName}}\",\n  \"id\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('categoryName', 'QA1 POST category ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid category update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify rejected update preserved category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject malformed JSON for category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{broken",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject wrong media type for category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "name=ignored"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 415);",
+                  "pm.variables.set('responseKind', 'unsupported-media');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Ingredients CRUD and validation",
+      "item": [
+        {
+          "name": "Reject empty ingredient name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.test('Name validation is reported', function () { pm.expect(Object.prototype.hasOwnProperty.call(pm.response.json().errors, 'Name')).to.equal(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject overlong ingredient name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "{{longNameBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('longNameBody', JSON.stringify({name: 'N'.repeat(101)}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create ingredient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{ingredientName}}\",\n  \"id\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 201);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('ingredientName', 'QA1 ingredient ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "if (pm.response.code === 201 && Number.isInteger(data.id) && data.id > 0) { pm.variables.set('ingredientId', data.id); }",
+                  "pm.test('Created lookup contains generated ID and submitted name', function () {",
+                  "    pm.expect(Number.isInteger(data.id) && data.id > 0 && data.id !== 2147483647).to.equal(true);",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('ingredientName'));",
+                  "});",
+                  "pm.test('Location identifies the new resource', function () { pm.expect(pm.response.headers.get('Location') || '').to.match(new RegExp('/api/ingredients/' + data.id + '$')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read created ingredient",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('ingredientId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('ingredientName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT update ingredient",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{ingredientName}}\",\n  \"id\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('ingredientName', 'QA1 PUT ingredient ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('ingredientId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('ingredientName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST update ingredient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{ingredientName}}\",\n  \"id\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('ingredientName', 'QA1 POST ingredient ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('ingredientId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('ingredientName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid ingredient update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify rejected update preserved ingredient",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Lookup DTO matches persisted fields', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('ingredientId')));",
+                  "    pm.expect(data.name).to.equal(pm.variables.get('ingredientName'));",
+                  "    pm.expect(Object.keys(data).sort().join(',')).to.equal('id,name');",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject malformed JSON for ingredient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "{broken",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject wrong media type for ingredient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "name=ignored"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 415);",
+                  "pm.variables.set('responseKind', 'unsupported-media');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Recipes CRUD, relationships and images",
+      "item": [
+        {
+          "name": "Reject missing recipe fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject nonpositive cooking time and servings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 invalid numbers\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 0,\n  \"servings\": 0,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject nonexistent category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 invalid category\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": 2147483647\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.test('Invalid category is reported', function () { pm.expect(Object.prototype.hasOwnProperty.call(pm.response.json().errors, 'CategoryId')).to.equal(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject overlong recipe title",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{{longRecipeBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('longRecipeBody', JSON.stringify({title: 'T'.repeat(201), instructions: 'Cook.', cookingTimeMinutes: 20, servings: 2, categoryId: Number(pm.variables.get('categoryId'))}));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject malformed recipe JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{broken",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject non-JSON recipe request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "ignored"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 415);",
+                  "pm.variables.set('responseKind', 'unsupported-media');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create recipe and reject overposting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{recipeTitle}}\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}},\n  \"id\": 2147483647,\n  \"imagePath\": \"/untrusted.png\",\n  \"category\": {\n    \"id\": 2147483647\n  },\n  \"recipeIngredients\": [\n    {\n      \"ingredientId\": 2147483647,\n      \"quantity\": 100,\n      \"unit\": \"bad\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 201);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('recipeTitle', 'QA1 recipe ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "if (pm.response.code === 201 && Number.isInteger(data.id) && data.id > 0) { pm.variables.set('recipeId', data.id); }",
+                  "pm.test('Recipe gets a generated ID and ignores image/navigation overposting', function () {",
+                  "    pm.expect(Number.isInteger(data.id) && data.id > 0 && data.id !== 2147483647).to.equal(true);",
+                  "    pm.expect(data.imagePath === null && Array.isArray(data.ingredients) && data.ingredients.length === 0).to.equal(true);",
+                  "});",
+                  "pm.test('Recipe Location points to the created resource', function () { pm.expect(pm.response.headers.get('Location') || '').to.match(new RegExp('/api/recipes/' + data.id + '$')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read created recipe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Recipe DTO contains persisted fields and category', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('recipeId')));",
+                  "    pm.expect(data.title).to.equal(pm.variables.get('recipeTitle'));",
+                  "    pm.expect(data.description).to.equal('Рецепт QA1: Unicode and JSON.');",
+                  "    pm.expect(data.instructions).to.equal('Prepare.\\nCook and serve.');",
+                  "    pm.expect(data.cookingTimeMinutes === 20 && data.servings === 2).to.equal(true);",
+                  "    pm.expect(data.categoryId).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.categoryName).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Array.isArray(data.ingredients) && data.ingredients.length === 0).to.equal(true);",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload recipe PNG",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}/image",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "imageFile",
+                  "type": "file",
+                  "src": "fixtures/recipe.png",
+                  "contentType": "image/png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "const validPath = typeof data.imagePath === 'string' && /^\\/uploads\\/recipes\\/[a-f0-9]{32}\\.png$/.test(data.imagePath);",
+                  "pm.test('Upload returns a generated local PNG path', function () { pm.expect(validPath).to.equal(true); });",
+                  "if (validPath) { pm.variables.set('imagePath', data.imagePath); }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read uploaded PNG",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{imagePath}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'image');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT update recipe and preserve image",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{recipeTitle}}\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}},\n  \"id\": 2147483647,\n  \"imagePath\": \"/untrusted.png\",\n  \"recipeIngredients\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('recipeTitle', 'QA1 PUT recipe ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Recipe DTO contains persisted fields and category', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('recipeId')));",
+                  "    pm.expect(data.title).to.equal(pm.variables.get('recipeTitle'));",
+                  "    pm.expect(data.description).to.equal('Рецепт QA1: Unicode and JSON.');",
+                  "    pm.expect(data.instructions).to.equal('Prepare.\\nCook and serve.');",
+                  "    pm.expect(data.cookingTimeMinutes === 20 && data.servings === 2).to.equal(true);",
+                  "    pm.expect(data.categoryId).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.categoryName).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Array.isArray(data.ingredients) && data.ingredients.length === 0).to.equal(true);",
+                  "});",
+                  "",
+                  "pm.test('JSON update preserves the uploaded image', function () { pm.expect(pm.response.json().imagePath).to.equal(pm.variables.get('imagePath')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST update recipe and preserve image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{recipeTitle}}\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}},\n  \"id\": 2147483647,\n  \"imagePath\": \"/untrusted.png\",\n  \"recipeIngredients\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('recipeTitle', 'QA1 POST recipe ' + pm.variables.get('runId'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Recipe DTO contains persisted fields and category', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('recipeId')));",
+                  "    pm.expect(data.title).to.equal(pm.variables.get('recipeTitle'));",
+                  "    pm.expect(data.description).to.equal('Рецепт QA1: Unicode and JSON.');",
+                  "    pm.expect(data.instructions).to.equal('Prepare.\\nCook and serve.');",
+                  "    pm.expect(data.cookingTimeMinutes === 20 && data.servings === 2).to.equal(true);",
+                  "    pm.expect(data.categoryId).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.categoryName).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Array.isArray(data.ingredients) && data.ingredients.length === 0).to.equal(true);",
+                  "});",
+                  "",
+                  "pm.test('JSON update preserves the uploaded image', function () { pm.expect(pm.response.json().imagePath).to.equal(pm.variables.get('imagePath')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid recipe update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify rejected recipe update preserved fields",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "pm.test('Recipe DTO contains persisted fields and category', function () {",
+                  "    pm.expect(data.id).to.equal(Number(pm.variables.get('recipeId')));",
+                  "    pm.expect(data.title).to.equal(pm.variables.get('recipeTitle'));",
+                  "    pm.expect(data.description).to.equal('Рецепт QA1: Unicode and JSON.');",
+                  "    pm.expect(data.instructions).to.equal('Prepare.\\nCook and serve.');",
+                  "    pm.expect(data.cookingTimeMinutes === 20 && data.servings === 2).to.equal(true);",
+                  "    pm.expect(data.categoryId).to.equal(Number(pm.variables.get('categoryId')));",
+                  "    pm.expect(data.categoryName).to.equal(pm.variables.get('categoryName'));",
+                  "    pm.expect(Array.isArray(data.ingredients) && data.ingredients.length === 0).to.equal(true);",
+                  "});",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject unsupported image extension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data; boundary=QA1Boundary"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}/image",
+            "body": {
+              "mode": "raw",
+              "raw": "--QA1Boundary\r\nContent-Disposition: form-data; name=\"imageFile\"; filename=\"rejected.txt\"\r\nContent-Type: text/plain\r\n\r\nUnsupported file\r\n--QA1Boundary--\r\n"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replace recipe image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}/image",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "imageFile",
+                  "type": "file",
+                  "src": "fixtures/recipe.png",
+                  "contentType": "image/png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "pm.variables.set('oldImagePath', pm.variables.get('imagePath'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "const validPath = typeof data.imagePath === 'string' && /^\\/uploads\\/recipes\\/[a-f0-9]{32}\\.png$/.test(data.imagePath);",
+                  "pm.test('Upload returns a generated local PNG path', function () { pm.expect(validPath).to.equal(true); });",
+                  "if (validPath) { pm.variables.set('imagePath', data.imagePath); }",
+                  "",
+                  "pm.test('Replacement gets a new image path', function () { pm.expect(pm.response.json().imagePath !== pm.variables.get('oldImagePath')).to.equal(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Previous image no longer exists",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{oldImagePath}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'missing-image');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Used category cannot be deleted",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 409);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Antiforgery protection",
+      "item": [
+        {
+          "name": "categories rejects POST without token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 CSRF blocked {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "categories rejects POST with invalid token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "invalid-qa1-token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 CSRF blocked {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "categories rejects PUT without token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 CSRF blocked {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "categories rejects DELETE without token",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ingredients rejects POST without token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 CSRF blocked {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ingredients rejects POST with invalid token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "invalid-qa1-token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 CSRF blocked {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ingredients rejects PUT without token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 CSRF blocked {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ingredients rejects DELETE without token",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "recipes rejects POST without token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 CSRF blocked\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "recipes rejects POST with invalid token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "invalid-qa1-token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 CSRF blocked\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "recipes rejects PUT without token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 CSRF blocked\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "recipes rejects DELETE without token",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image upload rejects missing antiforgery",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}/image",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "imageFile",
+                  "type": "file",
+                  "src": "fixtures/recipe.png",
+                  "contentType": "image/png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 400);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Cleanup and missing resources",
+      "item": [
+        {
+          "name": "Delete owned recipe",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 204);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted recipe image no longer exists",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{imagePath}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'missing-image');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted recipe returns 404 for GET",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted recipe returns 404 for PUT",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 missing recipe\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted recipe returns 404 for POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"QA1 missing recipe\",\n  \"description\": \"Рецепт QA1: Unicode and JSON.\",\n  \"instructions\": \"Prepare.\\nCook and serve.\",\n  \"cookingTimeMinutes\": 20,\n  \"servings\": 2,\n  \"categoryId\": {{categoryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted recipe returns 404 for DELETE",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recipes/{{recipeId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete owned ingredient",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 204);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted ingredient returns 404 for GET",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted ingredient returns 404 for PUT",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 missing lookup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted ingredient returns 404 for POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 missing lookup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted ingredient returns 404 for DELETE",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ingredients/{{ingredientId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete owned category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 204);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted category returns 404 for GET",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted category returns 404 for PUT",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 missing lookup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted category returns 404 for POST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA1 missing lookup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted category returns 404 for DELETE",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "{{csrfHeaderName}}",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 404);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 - Verify unchanged existing data",
+      "item": [
+        {
+          "name": "Verify categories returned to baseline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/categories"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "const current = JSON.stringify(data.slice().sort((a, b) => a.id - b.id));",
+                  "pm.test('Existing categories are unchanged after cleanup', function () { pm.expect(current === pm.variables.get('baseline_categories')).to.equal(true); });",
+                  "pm.test('No records from this run remain', function () { pm.expect(data.every(item => !String(item.name || item.title).includes(pm.variables.get('runId')))).to.equal(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify ingredients returned to baseline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ingredients"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "const current = JSON.stringify(data.slice().sort((a, b) => a.id - b.id));",
+                  "pm.test('Existing ingredients are unchanged after cleanup', function () { pm.expect(current === pm.variables.get('baseline_ingredients')).to.equal(true); });",
+                  "pm.test('No records from this run remain', function () { pm.expect(data.every(item => !String(item.name || item.title).includes(pm.variables.get('runId')))).to.equal(true); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify recipes returned to baseline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/recipes"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "pm.variables.set('expectedStatus', 200);",
+                  "pm.variables.set('responseKind', 'json');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "const data = pm.response.json();",
+                  "const current = JSON.stringify(data.slice().sort((a, b) => a.id - b.id));",
+                  "pm.test('Existing recipes are unchanged after cleanup', function () { pm.expect(current === pm.variables.get('baseline_recipes')).to.equal(true); });",
+                  "pm.test('No records from this run remain', function () { pm.expect(data.every(item => !String(item.name || item.title).includes(pm.variables.get('runId')))).to.equal(true); });",
+                  "",
+                  "pm.variables.set('csrfToken', '');",
+                  "pm.variables.set('csrfHeaderName', '');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
