@@ -18,6 +18,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+// API failures return JSON, while MVC keeps its existing error page.
+app.UseWhen(context => context.Request.Path.StartsWithSegments("/api"), api =>
+{
+    api.UseExceptionHandler(error =>
+    {
+        error.Run(context => Results.Problem(title: "Unable to process the API request.",
+            statusCode: StatusCodes.Status500InternalServerError).ExecuteAsync(context));
+    });
+});
+
 app.UseHttpsRedirection();
 // Uploaded images are created at runtime and are not in the build-time static asset manifest.
 app.UseStaticFiles();
