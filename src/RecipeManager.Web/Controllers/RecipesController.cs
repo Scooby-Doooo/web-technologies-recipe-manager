@@ -48,6 +48,31 @@ public class RecipesController : Controller
         return View(new Recipe { CookingTimeMinutes = 30, Servings = 2 });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> CategoryOptions(string? term, int page = 1,
+        CancellationToken cancellationToken = default)
+    {
+        const int pageSize = 20;
+        term = term?.Trim() ?? string.Empty;
+        if (term.Length > 100)
+            ModelState.AddModelError(nameof(term), "Search must be 100 characters or fewer.");
+        if (page < 1 || page > int.MaxValue / pageSize)
+            ModelState.AddModelError(nameof(page), "Invalid result page.");
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (term.Length < 3)
+            return Json(new { results = Array.Empty<object>(), pagination = new { more = false } });
+
+        // LIKE is parameterized; escape its wildcard characters so input remains literal.
+        var pattern = "%" + term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+        var matches = await _context.Categories.AsNoTracking()
+            .Where(category => EF.Functions.Like(category.Name, pattern, "\\"))
+            .OrderBy(category => category.Name).ThenBy(category => category.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize + 1)
+            .Select(category => new { id = category.Id, text = category.Name })
+            .ToListAsync(cancellationToken);
+        return Json(new { results = matches.Take(pageSize), pagination = new { more = matches.Count > pageSize } });
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(
@@ -215,7 +240,8 @@ public class RecipesController : Controller
     private async Task PopulateCategories(int? selectedCategory = null)
     {
         var categories = await _context.Categories.AsNoTracking()
-            .OrderBy(category => category.Name).ToListAsync();
+            .Where(category => category.Id == selectedCategory)
+            .Select(category => new { category.Id, category.Name }).ToListAsync();
         ViewBag.CategoryId = new SelectList(categories, "Id", "Name", selectedCategory);
     }
 }

@@ -12,11 +12,14 @@
     <span asp-validation-for="Description" class="text-danger"></span>
 </div>
 <div class="mb-3">
-    <label asp-for="CategoryId" class="form-label"></label>
-    <select asp-for="CategoryId" asp-items="ViewBag.CategoryId" class="form-select">
+    <label asp-for="CategoryId" id="category-label" class="form-label"></label>
+    <select asp-for="CategoryId" asp-items="ViewBag.CategoryId" class="form-select recipe-category-autocomplete"
+            data-search-url="@Url.Action("CategoryOptions", "Recipes")" aria-describedby="categoryHelp categoryValidation">
         <option value="">Select a category</option>
     </select>
-    <span asp-validation-for="CategoryId" class="text-danger"></span>
+    <div id="categoryHelp" class="form-text">Type at least 3 characters to search categories.</div>
+    <span asp-validation-for="CategoryId" id="categoryValidation" class="text-danger"></span>
+    <p id="category-search-status" class="text-danger mt-2" role="status">Category search is unavailable. Enable JavaScript or reload the page. When editing, you can keep the current category.</p>
 </div>
 <div class="mb-3">
     <label asp-for="CookingTimeMinutes" class="form-label"></label>

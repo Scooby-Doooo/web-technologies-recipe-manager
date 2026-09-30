@@ -1,0 +1,30 @@
+.recipe-category-autocomplete + .select2 .select2-selection--single {
+  min-height: 38px;
+  height: auto;
+  border-color: #dee2e6;
+  border-radius: 0.375rem;
+}
+
+.recipe-category-autocomplete + .select2 .select2-selection__rendered {
+  padding: 0.375rem 2rem 0.375rem 0.75rem;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.recipe-category-autocomplete + .select2 .select2-selection__arrow {
+  height: 36px;
+}
+
+.recipe-category-autocomplete + .select2 .select2-selection:focus {
+  outline: 3px solid #258cfb;
+  outline-offset: 2px;
+}
+
+.recipe-category-autocomplete + .select2 .select2-selection[aria-invalid="true"] {
+  border-color: #dc3545;
+}
+
+.select2-results__option {
+  overflow-wrap: anywhere;
+}
