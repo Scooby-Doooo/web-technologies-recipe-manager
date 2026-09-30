@@ -1,0 +1,14 @@
+{
+  "name": "recipe-manager-e2e-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QA2: isolated browser tests for C1 MVC and F2 category autocomplete",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "test": "node run.js",
+    "test:headed": "node run.js --headed",
+    "coverage": "node coverage.js"
+  },
+  "devDependencies": { "@playwright/test": "1.64.0" }
+}
