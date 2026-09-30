@@ -1,0 +1,74 @@
+@model RecipeStatisticsViewModel
+@{
+    ViewData["Title"] = "Statistics";
+}
+
+<section class="recipe-statistics">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+        <div>
+            <h1>Statistics</h1>
+            <p class="text-muted mb-0">Recipes in your collection: <strong id="statistics-total">@Model.TotalRecipes</strong></p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-controller="Recipes" asp-action="Index">View recipes</a>
+    </div>
+
+    @if (Model.TotalRecipes == 0)
+    {
+        <div class="border rounded p-4" id="statistics-empty">
+            <h2 class="h4">No recipes yet</h2>
+            <p>Add a recipe to see statistics by category and cooking time.</p>
+            <a class="btn btn-primary" asp-controller="Recipes" asp-action="Create">Create recipe</a>
+        </div>
+    }
+    else
+    {
+        <p id="statistics-chart-status" class="text-muted" role="status" hidden>Charts could not load. The same data is available in the tables below.</p>
+        <div class="row g-4">
+            <section class="col-lg-6" aria-labelledby="category-chart-title">
+                <h2 class="h4" id="category-chart-title">Recipes by category</h2>
+                <div class="statistics-chart" id="category-chart-container" hidden>
+                    <canvas id="category-chart" role="img" aria-labelledby="category-chart-title" aria-describedby="category-table-caption">
+                        Recipe counts are listed in the category table below.
+                    </canvas>
+                </div>
+                <table class="table statistics-table" id="category-statistics">
+                    <caption class="visually-hidden" id="category-table-caption">Number of recipes in each category with recipes.</caption>
+                    <thead><tr><th scope="col">Category</th><th scope="col">Recipes</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in Model.Categories)
+                        {
+                            <tr><th scope="row">@item.Label</th><td>@item.Count</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+            <section class="col-lg-6" aria-labelledby="time-chart-title">
+                <h2 class="h4" id="time-chart-title">Cooking time</h2>
+                <div class="statistics-chart" id="time-chart-container" hidden>
+                    <canvas id="time-chart" role="img" aria-labelledby="time-chart-title" aria-describedby="time-table-caption">
+                        Recipe counts are listed in the cooking time table below.
+                    </canvas>
+                </div>
+                <table class="table statistics-table" id="time-statistics">
+                    <caption class="visually-hidden" id="time-table-caption">Number of recipes by cooking time in minutes.</caption>
+                    <thead><tr><th scope="col">Cooking time</th><th scope="col">Recipes</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in Model.CookingTimes)
+                        {
+                            <tr><th scope="row">@item.Label</th><td>@item.Count</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    }
+</section>
+
+@section Scripts {
+    @if (Model.TotalRecipes > 0)
+    {
+        <script type="application/json" id="statistics-data">@Json.Serialize(new { categories = Model.Categories, cookingTimes = Model.CookingTimes })</script>
+        <script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+        <script src="~/js/recipe-statistics.js" asp-append-version="true"></script>
+    }
+}

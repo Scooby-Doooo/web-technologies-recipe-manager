@@ -190,3 +190,27 @@ body {
     margin-bottom: 2rem;
   }
 }
+
+.recipe-statistics {
+  padding: 1rem 0 2rem;
+}
+
+.statistics-chart {
+  position: relative;
+  height: 300px;
+  margin: 1.5rem 0;
+}
+
+.statistics-table {
+  table-layout: fixed;
+}
+
+.statistics-table th {
+  overflow-wrap: anywhere;
+}
+
+.statistics-table th:last-child,
+.statistics-table td:last-child {
+  width: 5rem;
+  text-align: right;
+}
