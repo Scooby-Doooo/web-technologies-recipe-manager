@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
@@ -27,10 +28,22 @@ public class RecipesApiController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<RecipeResponse>>> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery, Range(0, int.MaxValue)] int skip = 0,
+        [FromQuery, Range(1, 100)] int limit = 20)
     {
-        var recipes = await RecipeQuery().OrderBy(recipe => recipe.Title).ToListAsync();
-        return recipes.Select(ToResponse).ToList();
+        var query = RecipeQuery().OrderBy(recipe => recipe.Title).ThenBy(recipe => recipe.Id);
+        // Keep the C5 array contract when pagination is not requested.
+        if (!Request.Query.ContainsKey("skip") && !Request.Query.ContainsKey("limit"))
+            return Ok((await query.ToListAsync()).Select(ToResponse).ToList());
+
+        var recipes = await query.Skip(skip).Take(limit + 1).ToListAsync();
+        var hasNextPage = recipes.Count > limit;
+        if (hasNextPage) recipes.RemoveAt(recipes.Count - 1);
+        var nextLink = hasNextPage
+            ? Url.Action(nameof(GetAll), new { skip = (long)skip + limit, limit })
+            : null;
+        return Ok(new PageResponse<RecipeResponse>(recipes.Select(ToResponse).ToList(), skip, limit, nextLink));
     }
 
     [HttpGet("{id:int}")]

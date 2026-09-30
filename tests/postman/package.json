@@ -2,9 +2,10 @@
   "name": "recipe-manager-api-tests",
   "version": "1.0.0",
   "private": true,
-  "description": "QA1: local Postman collection tests for the C5 Recipe Manager API",
+  "description": "QA1 and B1: local Postman tests for the Recipe Manager API",
   "scripts": {
-    "test": "newman run recipe-manager.postman_collection.json -e local.postman_environment.json --working-dir . --timeout-request 10000 --reporter-cli-no-console"
+    "test": "newman run recipe-manager.postman_collection.json -e local.postman_environment.json --working-dir . --timeout-request 10000 --reporter-cli-no-console",
+    "test:pagination": "newman run b1-pagination.postman_collection.json -e local.postman_environment.json --working-dir . --timeout-request 10000 --reporter-cli-no-console"
   },
   "devDependencies": {
     "newman": "6.2.2"

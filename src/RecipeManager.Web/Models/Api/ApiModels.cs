@@ -11,6 +11,8 @@ public class LookupRequest
 
 public record LookupResponse(int Id, string Name);
 
+public record PageResponse<T>(IReadOnlyList<T> Items, int Skip, int Limit, string? NextLink);
+
 // Only editable fields are accepted; IDs, image paths and navigation properties are not bound.
 public class RecipeRequest
 {

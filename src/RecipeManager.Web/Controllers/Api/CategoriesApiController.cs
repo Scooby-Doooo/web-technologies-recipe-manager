@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -20,10 +21,23 @@ public class CategoriesApiController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<LookupResponse>>> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery, Range(0, int.MaxValue)] int skip = 0,
+        [FromQuery, Range(1, 100)] int limit = 20)
     {
-        return await _context.Categories.AsNoTracking().OrderBy(item => item.Name)
-            .Select(item => new LookupResponse(item.Id, item.Name)).ToListAsync();
+        var query = _context.Categories.AsNoTracking().OrderBy(item => item.Name).ThenBy(item => item.Id)
+            .Select(item => new LookupResponse(item.Id, item.Name));
+        // Keep the C5 array contract when pagination is not requested.
+        if (!Request.Query.ContainsKey("skip") && !Request.Query.ContainsKey("limit"))
+            return Ok(await query.ToListAsync());
+
+        var items = await query.Skip(skip).Take(limit + 1).ToListAsync();
+        var hasNextPage = items.Count > limit;
+        if (hasNextPage) items.RemoveAt(items.Count - 1);
+        var nextLink = hasNextPage
+            ? Url.Action(nameof(GetAll), new { skip = (long)skip + limit, limit })
+            : null;
+        return Ok(new PageResponse<LookupResponse>(items, skip, limit, nextLink));
     }
 
     [HttpGet("{id:int}")]
