@@ -1,129 +1,123 @@
-# Recipe Manager
+# Лабораторні роботи з курсу «Web-технології»
 
-Semester project for the Web Technologies course.
+**Тема проєкту: Recipe Manager — вебзастосунок для збереження рецептів**
 
-## Description
+Застосунок: ASP.NET Core MVC (.NET 10) · БД: SQLite через Entity Framework Core
 
-Recipe Manager is a simple ASP.NET Core MVC web application for managing recipes,
-recipe categories and ingredients. The project is developed gradually as a single MVC application.
+## Про застосунок
 
-Recipes, categories and ingredients each support list, details, create, edit and
-delete pages. Recipe forms include a category selector, description, instructions,
-cooking time and servings. DataAnnotations provide server validation and the
-template's jQuery validation provides client validation. POST actions use antiforgery tokens.
+Усі етапи курсу виконуються в одному проєкті. Застосунок зберігає рецепти,
+розкладені за категоріями, і довідник інгредієнтів. Для рецепта вказуються
+опис, інструкція, час приготування, кількість порцій і, за бажанням, фото.
+Кожен рецепт має власну сторінку-лендинг. Ті самі дані доступні через JSON API,
+а на окремій сторінці показано статистику у вигляді діаграм.
 
-## Technology Stack
+## Модель даних
 
-- ASP.NET Core MVC (.NET 10)
-- Entity Framework Core
-- SQLite
-- Razor Views
-- Bootstrap (included by the MVC template)
+Чотири таблиці:
 
-## Project Structure
+- `Category` — категорія (Breakfast, Dessert тощо), один до багатьох із `Recipe`;
+- `Recipe` — рецепт; поле `ImagePath` зберігає посилання на завантажене фото;
+- `Ingredient` — довідник інгредієнтів;
+- `RecipeIngredient` — зв'язок «багато до багатьох» між рецептом та інгредієнтом
+  з кількістю й одиницею виміру, первинний ключ `(RecipeId, IngredientId)`.
 
-- `src/RecipeManager.Web/`: the ASP.NET Core MVC application.
-- `tests/`: reserved for future automated test projects.
+Під час видалення рецепта його зв'язки з інгредієнтами видаляються каскадно.
+Категорію чи інгредієнт, які ще використовуються, видалити не можна.
+Схема й початкові довідники створюються міграцією `InitialCreate`.
 
-## Domain Model
+## Виконані етапи
 
-- Category 1 -> many Recipes.
-- Recipe 1 -> many RecipeIngredients.
-- Ingredient 1 -> many RecipeIngredients.
-- RecipeIngredient connects recipes and ingredients, stores quantity and unit,
-  and uses `(RecipeId, IngredientId)` as its composite primary key.
+| Етап | Що зроблено | Детальніше |
+|---|---|---|
+| C1. MVC | CRUD для рецептів, категорій та інгредієнтів, завантаження фото рецепта (JPG/PNG/WEBP до 5 МБ) | розділ нижче |
+| C6. Bootstrap Landing Page | Сторінка Details рецепта перероблена на лендинг, контакти постійно на екрані | розділ нижче |
+| C5. REST API | CRUD тих самих сутностей через JSON, демонстрація через curl | розділ нижче |
+| QA1. Тестування Web API | Колекція Postman і запуск через Newman | розділ нижче |
+| B1. Pagination API | `skip` / `limit` / `nextLink` для списків API | розділ нижче |
+| F1. Візуалізація статистики | Сторінка `/Statistics` з двома діаграмами Chart.js | розділ нижче |
+| F2. AJAX autocomplete | Вибір категорії у формі рецепта через Select2 з пошуком на сервері | розділ нижче |
+| QA2. E2E тестування | Playwright-тести для C1, C6, F1, F2 та оцінка покриття | розділ нижче |
 
-Deleting a recipe also deletes its ingredient links. A category or ingredient
-that is still used cannot be deleted. The included `InitialCreate` migration
-inserts these seed rows when it is first applied to a database:
+## Як це працює
 
-- Categories: Breakfast, Main Course, Dessert, Salad.
-- Ingredients: Egg, Flour, Milk, Tomato, Chicken Breast, Parmesan, Spaghetti.
+**C1. MVC.** Для кожної сутності є контролер і стандартні сторінки Index,
+Details, Create, Edit, Delete. Перевірка полів зроблена атрибутами
+DataAnnotations на сервері й jQuery Validation у браузері, POST-форми захищені
+antiforgery-токеном. Фото зберігається у `wwwroot/uploads/recipes` під
+згенерованим ім'ям, а в БД записується лише відносний шлях. Під час заміни фото
+або видалення рецепта старий файл прибирається вже після успішного збереження в БД.
 
-Recipes can be created through the application. Seed data is defined with EF Core
-`HasData` and applied by migrations, not reinserted on every application startup.
+**C6. Landing Page.** Сторінка рецепта зібрана на Bootstrap: у першому блоці фото,
+а поруч назва, категорія, час і кількість порцій; нижче інгредієнти та
+покрокова інструкція.
+Блок з контактами закріплений унизу екрана. На телефоні колонки стають
+одна під одною, а для рецептів без фото є окремий варіант верстки.
 
-## How to Run
+**C5. REST API.** Окремі API-контролери в `Controllers/Api` повертають і
+приймають JSON. Створення дає 201 із заголовком `Location`, видалення — 204,
+помилки — 400, 404, 409 або 415 у форматі ProblemDetails. Для POST, PUT і DELETE
+потрібен antiforgery-токен, який видає `GET /api/antiforgery`. Сценарій
+`examples/c5-api-demo.ps1` проходить увесь CRUD через curl і після себе
+видаляє створені записи.
 
-From the repository root, with the .NET 10 SDK installed:
+**QA1.** У `tests/postman` лежить колекція Postman (формат v2.1) і локальне
+середовище. Колекція створює власні записи, перевіряє коди відповідей, валідацію,
+завантаження фото, захист від CSRF і наприкінці порівнює дані з початковими.
+Запуск з термінала — через Newman (`npm test`), повний прохід дає 74 запити
+та 295 перевірок.
 
-```sh
+**B1. Pagination.** Якщо до запиту списку додати `skip` або `limit`, API
+повертає сторінку `{ items, skip, limit, nextLink }`. Щоб не робити окремий
+COUNT, сервер читає на один запис більше, ніж `limit`: якщо він є, формується
+`nextLink`. Без цих параметрів API, як і в C5, повертає звичайний масив.
+Для пагінації є окрема Postman-колекція (`npm run test:pagination`).
+
+**F1. Статистика.** `StatisticsController` одним запитом групує рецепти за
+категорією та діапазоном часу приготування. Chart.js будує з цього дві діаграми,
+під кожною є таблиця з тими самими числами.
+
+**F2. Autocomplete.** Звичайний випадний список категорій замінено на Select2.
+Запит на сервер іде від 3 символів, через 300 мс після останнього натискання.
+Сервер шукає підрядок у назві й віддає по 20 результатів, наступні
+підвантажуються під час прокрутки. Перевірка на окремій БД з 1 000 000 категорій
+показала час відповіді приблизно від 110 до 550 мс.
+
+**QA2. E2E.** Тести в `tests/e2e` написані на Playwright і запускаються в Chrome.
+Для кожного прогону створюється тимчасова БД через ті самі міграції, і сервер
+стартує на окремому порту, тож робоча база не змінюється. Набір містить
+23 сценарії. Окремо рахується, скільки з 25 MVC-маршрутів реально відкривалися
+в тестах. Це покриття сценаріїв і маршрутів, а не рядків коду.
+
+## Запуск
+
+Потрібен .NET 10 SDK. З кореня репозиторію:
+
+```
 dotnet restore
 dotnet tool restore
-dotnet build
 dotnet ef database update --project src/RecipeManager.Web
 dotnet run --project src/RecipeManager.Web --launch-profile http
 ```
 
-Open http://localhost:5105.
+Застосунок відкривається на http://localhost:5105. Рядок підключення задано
+в `src/RecipeManager.Web/appsettings.json`, файл `recipe-manager.db`
+створюється в `src/RecipeManager.Web/`.
 
-Apply migrations before first use. They are not applied automatically at startup.
-The connection string is in `src/RecipeManager.Web/appsettings.json`. With the
-commands above, SQLite stores `recipe-manager.db` in `src/RecipeManager.Web/`.
-Database files and build output are ignored by Git. The repository includes a
-local `dotnet-ef` tool manifest so migration commands use the matching EF version.
+Тести (потрібен Node.js; для E2E ще й Google Chrome):
 
-## Migrations
-
-`InitialCreate` and the model snapshot are included in
-`src/RecipeManager.Web/Migrations/`. For a fresh checkout, restore the local tool
-and apply the existing migration; do not create `InitialCreate` again:
-
-```sh
-dotnet tool restore
-dotnet ef database update --project src/RecipeManager.Web
+```
+cd tests/postman && npm ci --ignore-scripts && npm test
+cd tests/e2e && npm ci --ignore-scripts && npm test
 ```
 
-After a future intentional model change, create a new migration with a new name,
-then apply it:
+Перед запуском Postman-колекції застосунок треба запустити на окремій тестовій
+БД. E2E-тести
+піднімають сервер самі.
 
-```sh
-dotnet ef migrations add <MigrationName> --project src/RecipeManager.Web
-dotnet ef database update --project src/RecipeManager.Web
-```
+## Структура репозиторію
 
-Migration source files belong in version control; the local SQLite database does not.
-
-## Current Scope
-
-Recipe Create and Edit support optional local image uploads: JPG, JPEG, PNG and
-WEBP, up to 5 MiB (5,242,880 bytes). Images are stored with generated filenames under
-`src/RecipeManager.Web/wwwroot/uploads/recipes/`; only their relative web paths
-are persisted in `Recipe.ImagePath`. Uploads are ignored by Git. Editing without a
-new upload preserves the current image; replacement and recipe deletion clean up
-the old local image after the database save succeeds.
-
-Recipe ingredient links and quantity/unit are modeled, but their editor is deferred.
-The final landing page, authentication, APIs and deployment are deferred.
-
-## Publish to GitHub
-
-From this repository root, after authenticating GitHub CLI:
-
-```sh
-gh auth login
-gh repo create web-technologies-recipe-manager --private --source . --remote origin --push
-```
-
-Alternatively, create an empty repository on GitHub and use its actual URL:
-
-```sh
-git remote add origin <repository-url>
-git push -u origin main
-```
-
-## Semester Tasks
-
-- [ ] C1 MVC
-- [ ] C2 Cloud
-- [ ] C3 CI/CD
-- [ ] C4 Docker
-- [ ] C5 REST API
-- [ ] QA1 Web API Testing
-- [ ] C6 Bootstrap Landing Page
-- [ ] C7 SEO
-- [ ] B1 Pagination
-- [ ] C8 External API Integration
-- [ ] F1 Statistics Visualization
-- [ ] F2 JavaScript / AJAX Autocomplete
-- [ ] B9 API Caching
+- `src/RecipeManager.Web` — застосунок (контролери, моделі, Razor-сторінки, міграції);
+- `examples` — скрипт демонстрації API через curl;
+- `tests/postman` — тести API (QA1, B1);
+- `tests/e2e` — E2E-тести (QA2).
