@@ -1,5 +1,8 @@
 @model IEnumerable<Recipe>
-@{ ViewData["Title"] = "Recipes"; }
+@{
+    ViewData["Title"] = "Recipes";
+    ViewData["Description"] = "All recipes in the collection with their category, cooking time and number of servings.";
+}
 
 <h1>Recipes</h1>
 <p><a asp-action="Create" class="btn btn-primary">Create recipe</a></p>

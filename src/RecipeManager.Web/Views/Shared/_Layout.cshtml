@@ -1,9 +1,41 @@
-﻿<!DOCTYPE html>
+﻿@{
+    var siteUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}";
+    var canonicalUrl = siteUrl + Context.Request.Path;
+    var pageTitle = $"{ViewData["Title"]} - Recipe Manager";
+    var description = ViewData["Description"] as string
+        ?? "Recipe Manager stores cooking recipes with categories, ingredients, cooking time and photos.";
+    // Forms and error pages have no content worth showing in search results.
+    var action = ViewContext.RouteData.Values["action"] as string;
+    var hiddenFromSearch = action is "Create" or "Edit" or "Delete" or "Error";
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Recipe Manager</title>
+    <title>@pageTitle</title>
+    <meta name="description" content="@description" />
+    <meta name="robots" content="@(hiddenFromSearch ? "noindex, follow" : "index, follow")" />
+    @if (!hiddenFromSearch)
+    {
+        <link rel="canonical" href="@canonicalUrl" />
+    }
+    <meta property="og:site_name" content="Recipe Manager" />
+    <meta property="og:type" content="@(ViewData["OgType"] ?? "website")" />
+    <meta property="og:title" content="@ViewData["Title"]" />
+    <meta property="og:description" content="@description" />
+    <meta property="og:url" content="@canonicalUrl" />
+    @if (ViewData["ImageUrl"] is string imageUrl)
+    {
+        <meta property="og:image" content="@imageUrl" />
+        <meta name="twitter:card" content="summary_large_image" />
+    }
+    else
+    {
+        <meta name="twitter:card" content="summary" />
+    }
+    <meta name="theme-color" content="#17674f" />
+    @await RenderSectionAsync("StructuredData", required: false)
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -12,7 +44,7 @@
 </head>
 <body class="@ViewData["BodyClass"]">
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav aria-label="Main navigation" class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Recipe Manager</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"

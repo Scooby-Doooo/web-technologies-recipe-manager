@@ -2,6 +2,15 @@
 @{
     ViewData["Title"] = Model.Title;
     ViewData["BodyClass"] = "recipe-details-page";
+    ViewData["Description"] = RecipeStructuredData.Summary(Model);
+    ViewData["OgType"] = "article";
+    var siteUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}";
+    var imageUrl = string.IsNullOrEmpty(Model.ImagePath) ? null : siteUrl + Model.ImagePath;
+    ViewData["ImageUrl"] = imageUrl;
+}
+
+@section StructuredData {
+    <!script type="application/ld+json">@Json.Serialize(RecipeStructuredData.Create(Model, siteUrl + Context.Request.Path, imageUrl))</!script>
 }
 
 <article class="recipe-landing" aria-labelledby="recipe-title">
@@ -11,7 +20,7 @@
         <div class="col-lg-6">
             @if (!string.IsNullOrEmpty(Model.ImagePath))
             {
-                <img src="@Model.ImagePath" alt="Image for @Model.Title" class="recipe-photo img-fluid" />
+                <img src="@Model.ImagePath" alt="Image for @Model.Title" width="1200" height="900" fetchpriority="high" class="recipe-photo img-fluid" />
             }
             else
             {

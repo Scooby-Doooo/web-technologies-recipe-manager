@@ -1,5 +1,8 @@
 @model IEnumerable<Ingredient>
-@{ ViewData["Title"] = "Ingredients"; }
+@{
+    ViewData["Title"] = "Ingredients";
+    ViewData["Description"] = "Ingredients used in the recipes of the collection.";
+}
 
 <h1>Ingredients</h1>
 <p><a asp-action="Create" class="btn btn-primary">Create ingredient</a></p>

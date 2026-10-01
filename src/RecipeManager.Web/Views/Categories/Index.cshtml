@@ -1,5 +1,8 @@
 @model IEnumerable<Category>
-@{ ViewData["Title"] = "Categories"; }
+@{
+    ViewData["Title"] = "Categories";
+    ViewData["Description"] = "Recipe categories such as breakfast, main course, dessert and salad.";
+}
 
 <h1>Categories</h1>
 <p><a asp-action="Create" class="btn btn-primary">Create category</a></p>
