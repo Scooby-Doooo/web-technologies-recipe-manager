@@ -26,7 +26,8 @@ for (const suite of report.suites) visit(suite);
 const expectedCases = [
     ...Array.from({ length: 9 }, (_, i) => 'C1-' + String(i + 1).padStart(2, '0')),
     'C1-10a', 'C1-10b', 'C1-10c',
-    ...Array.from({ length: 10 }, (_, i) => 'F2-' + String(i + 1).padStart(2, '0')), 'REG-01'
+    ...Array.from({ length: 10 }, (_, i) => 'F2-' + String(i + 1).padStart(2, '0')), 'REG-01',
+    'SEO-01', 'SEO-02'
 ];
 const expectedRoutes = [];
 for (const controller of ['Recipes', 'Categories', 'Ingredients']) {
