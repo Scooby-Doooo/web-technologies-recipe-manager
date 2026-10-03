@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
@@ -21,6 +22,7 @@ public class IngredientsApiController : ControllerBase
     }
 
     [HttpGet]
+    [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.IngredientsTag)]
     public async Task<IActionResult> GetAll(
         [FromQuery, Range(0, int.MaxValue)] int skip = 0,
         [FromQuery, Range(1, 100)] int limit = 20)
@@ -41,6 +43,7 @@ public class IngredientsApiController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
+    [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.IngredientsTag)]
     public async Task<ActionResult<LookupResponse>> GetById(int id)
     {
         var item = await _context.Ingredients.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
