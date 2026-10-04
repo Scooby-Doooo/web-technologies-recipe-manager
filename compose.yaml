@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    image: recipe-manager:latest
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+    volumes:
+      - recipe-data:/app/data
+      - recipe-uploads:/app/wwwroot/uploads
+    restart: unless-stopped
+
+volumes:
+  recipe-data:
+  recipe-uploads:

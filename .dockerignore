@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/*.db
+**/*.db-*
+src/RecipeManager.Web/wwwroot/uploads/recipes/*
+tests/
+examples/
+.git/
+.vs/
+.vscode/
+.idea/
+*.md
