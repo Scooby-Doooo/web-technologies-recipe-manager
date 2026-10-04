@@ -9,6 +9,17 @@
     ViewData["ImageUrl"] = imageUrl;
 }
 
+@section Analytics {
+    <script>
+        gtag('event', 'view_recipe', @Json.Serialize(new
+        {
+            recipe_id = Model.Id,
+            recipe_category = Model.Category.Name,
+            cooking_time_minutes = Model.CookingTimeMinutes
+        }));
+    </script>
+}
+
 @section StructuredData {
     <!script type="application/ld+json">@Json.Serialize(RecipeStructuredData.Create(Model, siteUrl + Context.Request.Path, imageUrl))</!script>
 }

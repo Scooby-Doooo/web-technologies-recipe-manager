@@ -4,6 +4,15 @@
     ViewData["Description"] = "All recipes in the collection with their category, cooking time and number of servings.";
 }
 
+@if (TempData["CreatedRecipeId"] is int createdRecipeId)
+{
+    @section Analytics {
+        <script>
+            gtag('event', 'recipe_created', @Json.Serialize(new { recipe_id = createdRecipeId }));
+        </script>
+    }
+}
+
 <h1>Recipes</h1>
 <p><a asp-action="Create" class="btn btn-primary">Create recipe</a></p>
 @if (!Model.Any())

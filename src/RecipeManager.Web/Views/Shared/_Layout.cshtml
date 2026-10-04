@@ -1,4 +1,7 @@
-﻿@{
+﻿@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
+@{
+    var measurementId = Configuration["Analytics:MeasurementId"];
     var siteUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}";
     var canonicalUrl = siteUrl + Context.Request.Path;
     var pageTitle = $"{ViewData["Title"]} - Recipe Manager";
@@ -36,6 +39,22 @@
     }
     <meta name="theme-color" content="#17674f" />
     @await RenderSectionAsync("StructuredData", required: false)
+    @* In Development debug_mode makes local visits appear in GA DebugView. *@
+    @if (!string.IsNullOrEmpty(measurementId))
+    {
+        <script async src="https://www.googletagmanager.com/gtag/js?id=@measurementId"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() { dataLayer.push(arguments); }
+            gtag('js', new Date());
+            gtag('config', @Json.Serialize(measurementId)@(Environment.IsDevelopment() ? Html.Raw(", { debug_mode: true }") : null));
+        </script>
+        @await RenderSectionAsync("Analytics", required: false)
+    }
+    else if (IsSectionDefined("Analytics"))
+    {
+        IgnoreSection("Analytics");
+    }
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />

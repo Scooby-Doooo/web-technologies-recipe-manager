@@ -92,6 +92,8 @@ public class RecipesController : Controller
                 try
                 {
                     await _context.SaveChangesAsync();
+                    // Read once by the Index view, which reports the creation to Google Analytics.
+                    TempData["CreatedRecipeId"] = recipe.Id;
                     return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateException)
