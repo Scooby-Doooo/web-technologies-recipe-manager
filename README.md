@@ -33,6 +33,7 @@
 | C1. MVC | CRUD для рецептів, категорій та інгредієнтів, завантаження фото рецепта (JPG/PNG/WEBP до 5 МБ) | розділ нижче |
 | C6. Bootstrap Landing Page | Сторінка Details рецепта перероблена на лендинг, контакти постійно на екрані | розділ нижче |
 | C7. SEO | Метатеги, Open Graph, schema.org Recipe, `robots.txt` і `sitemap.xml` | розділ нижче |
+| C4. Docker | Dockerfile, Docker Compose з volumes для БД і фото | розділ нижче |
 | C5. REST API | CRUD тих самих сутностей через JSON, демонстрація через curl | розділ нижче |
 | QA1. Тестування Web API | Колекція Postman і запуск через Newman | розділ нижче |
 | B1. Pagination API | `skip` / `limit` / `nextLink` для списків API | розділ нижче |
@@ -62,6 +63,12 @@ robots і теги Open Graph, а форми закрито від індекс�
 приготування. `robots.txt` і `sitemap.xml` генеруються з БД. Локальний аудит
 Lighthouse показав зростання SEO з 90 до 100. Аудит у Seobility буде після
 розгортання сайту.
+
+**C4. Docker.** Образ збирається у два етапи: SDK для `dotnet publish` і легкий
+runtime-образ для запуску від непривілейованого користувача. `compose.yaml`
+монтує два volumes: для SQLite-бази разом із ключами Data Protection і для фото,
+тож дані переживають перестворення контейнера. На порожньому volume застосунок сам
+застосовує міграції під час старту.
 
 **C5. REST API.** Окремі API-контролери в `Controllers/Api` повертають і
 приймають JSON. Створення дає 201 із заголовком `Location`, видалення — 204,
@@ -115,7 +122,13 @@ dotnet ef database update --project src/RecipeManager.Web
 dotnet run --project src/RecipeManager.Web --launch-profile http
 ```
 
-Застосунок відкривається на http://localhost:5105. Рядок підключення задано
+Застосунок відкривається на http://localhost:5105.
+
+Або в Docker (потрібен Docker Desktop), застосунок буде на http://localhost:8080:
+
+```
+docker compose up --build -d
+``` Рядок підключення задано
 в `src/RecipeManager.Web/appsettings.json`, файл `recipe-manager.db`
 створюється в `src/RecipeManager.Web/`.
 
