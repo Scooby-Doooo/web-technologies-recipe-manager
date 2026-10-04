@@ -136,9 +136,10 @@ dotnet run --project src/RecipeManager.Web --launch-profile http
 
 ```
 docker compose up --build -d
-``` Рядок підключення задано
-в `src/RecipeManager.Web/appsettings.json`, файл `recipe-manager.db`
-створюється в `src/RecipeManager.Web/`.
+```
+
+Рядок підключення задано в `src/RecipeManager.Web/appsettings.json`, файл
+`recipe-manager.db` створюється в `src/RecipeManager.Web/`.
 
 Тести (потрібен Node.js; для E2E ще й Google Chrome):
 
