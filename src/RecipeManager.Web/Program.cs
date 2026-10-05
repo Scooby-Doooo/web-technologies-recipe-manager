@@ -25,7 +25,8 @@ builder.Services.AddOutputCache(options =>
                  OutputCacheInvalidationInterceptor.CategoriesTag, OutputCacheInvalidationInterceptor.IngredientsTag })
     {
         // "*" keeps "?skip=" (invalid, 400) apart from a request without skip (plain array).
-        options.AddPolicy(tag, policy => policy.Expire(apiCacheDuration).SetVaryByQuery("*").Tag(tag));
+        options.AddPolicy(tag, policy => policy.AddPolicy<PublicApiCachePolicy>()
+            .Expire(apiCacheDuration).SetVaryByQuery("*").Tag(tag), excludeDefaultPolicy: true);
     }
 });
 
