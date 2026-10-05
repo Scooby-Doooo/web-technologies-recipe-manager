@@ -70,6 +70,7 @@ export const test = base.extend({
             baseURL = `http://127.0.0.1:${await freePort()}`;
             const env = { ...process.env, ASPNETCORE_ENVIRONMENT: 'Development',
                 ConnectionStrings__DefaultConnection: `Data Source=${database}`,
+                Analytics__MeasurementId: 'G-QA2TEST000',
                 Logging__LogLevel__Default: 'Warning' };
             delete env.ASPNETCORE_HTTPS_PORT;
             delete env.ASPNETCORE_HTTPS_PORTS;
@@ -102,6 +103,8 @@ export const test = base.extend({
         const errors = [];
         const observations = [];
         page.on('pageerror', error => errors.push(error.message));
+        // Tests must not report visits to the real Google Analytics property.
+        await page.route('https://www.googletagmanager.com/**', route => route.fulfill({ contentType: 'text/javascript', body: '' }));
         page.on('response', response => {
             const url = new URL(response.url());
             if (/^\/(Recipes|Categories|Ingredients)(\/|$)/.test(url.pathname)) {
