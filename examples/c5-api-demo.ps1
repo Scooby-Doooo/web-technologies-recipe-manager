@@ -1,16 +1,22 @@
 param(
     [string]$BaseUrl = 'http://localhost:5105',
-    [string]$ImagePath
+    [string]$ImagePath,
+    # API token from the account page of the web app (writes require a signed-in user).
+    [string]$Token = $env:RECIPE_API_TOKEN
 )
 
 $ErrorActionPreference = 'Stop'
 $null = Get-Command curl.exe -ErrorAction Stop
 $BaseUrl = $BaseUrl.TrimEnd('/')
+if (-not $Token) {
+    throw 'Sign in to Recipe Manager, open the account page, create an API token and pass it with -Token or RECIPE_API_TOKEN.'
+}
 $resolvedImage = if ($ImagePath) { (Resolve-Path -LiteralPath $ImagePath).Path } else { $null }
 $sessionDirectory = Join-Path ([IO.Path]::GetTempPath()) ('recipe-manager-api-demo-' + [Guid]::NewGuid().ToString('N'))
 $null = [IO.Directory]::CreateDirectory($sessionDirectory)
 $cookieFile = Join-Path $sessionDirectory 'cookies.txt'
 $headerFile = Join-Path $sessionDirectory 'headers.cfg'
+$authFile = Join-Path $sessionDirectory 'auth.cfg'
 $requestFile = Join-Path $sessionDirectory 'request.json'
 $responseFile = Join-Path $sessionDirectory 'response.json'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -28,7 +34,7 @@ function Invoke-ApiRequest {
     # Files avoid PowerShell's native-command JSON quoting and keep tokens out of console output.
     $curlArguments = @('--silent', '--show-error', '--connect-timeout', '5', '--max-time', '30',
         '--request', $Method, '--cookie', $cookieFile, '--cookie-jar', $cookieFile,
-        '--output', $responseFile, '--write-out', '%{http_code}')
+        '--output', $responseFile, '--write-out', '%{http_code}', '--config', $authFile)
     if ($Method -ne 'GET' -and -not $WithoutToken) {
         $curlArguments += @('--config', $headerFile)
     }
@@ -53,6 +59,7 @@ function Invoke-ApiRequest {
 }
 
 try {
+    [IO.File]::WriteAllText($authFile, ('header = "Authorization: Bearer ' + $Token.Trim() + '"'), $utf8)
     $session = (Invoke-ApiRequest GET '/api/antiforgery' 200).Body
     [IO.File]::WriteAllText($headerFile, ('header = "' + $session.headerName + ': ' + $session.requestToken + '"'), $utf8)
     $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -109,7 +116,7 @@ finally {
         try { $null = Invoke-ApiRequest DELETE $createdRoutes[$index] @(204, 404) }
         catch { Write-Warning "Could not remove demo record $($createdRoutes[$index]); check the application." }
     }
-    foreach ($file in @($cookieFile, $headerFile, $requestFile, $responseFile)) {
+    foreach ($file in @($cookieFile, $headerFile, $authFile, $requestFile, $responseFile)) {
         [IO.File]::Delete($file)
     }
     [IO.Directory]::Delete($sessionDirectory)
