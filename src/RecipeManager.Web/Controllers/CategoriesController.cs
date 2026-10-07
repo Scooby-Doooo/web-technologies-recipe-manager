@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
@@ -5,6 +6,8 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Controllers;
 
+// Anyone can browse; creating, editing and deleting requires signing in.
+[Authorize]
 public class CategoriesController : Controller
 {
     private readonly ApplicationDbContext _context;
@@ -14,11 +17,13 @@ public class CategoriesController : Controller
         _context = context;
     }
 
+    [AllowAnonymous]
     public async Task<IActionResult> Index()
     {
         return View(await _context.Categories.AsNoTracking().OrderBy(item => item.Name).ToListAsync());
     }
 
+    [AllowAnonymous]
     public async Task<IActionResult> Details(int? id)
     {
         if (id == null) return NotFound();

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Data.Sqlite;
@@ -12,6 +13,7 @@ namespace RecipeManager.Web.Controllers.Api;
 [ApiController]
 [Route("api/categories")]
 [AutoValidateAntiforgeryToken]
+[Authorize]
 public class CategoriesApiController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -21,6 +23,7 @@ public class CategoriesApiController : ControllerBase
         _context = context;
     }
 
+    [AllowAnonymous]
     [HttpGet]
     [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.CategoriesTag)]
     public async Task<IActionResult> GetAll(
@@ -42,6 +45,7 @@ public class CategoriesApiController : ControllerBase
         return Ok(new PageResponse<LookupResponse>(items, skip, limit, nextLink));
     }
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.CategoriesTag)]
     public async Task<ActionResult<LookupResponse>> GetById(int id)

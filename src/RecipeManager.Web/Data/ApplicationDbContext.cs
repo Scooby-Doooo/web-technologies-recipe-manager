@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Category> Categories { get; set; }
     public DbSet<Ingredient> Ingredients { get; set; }
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; }
+    public DbSet<AppUser> Users { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,6 +22,10 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<RecipeIngredient>()
             .HasKey(item => new { item.RecipeId, item.IngredientId });
+
+        modelBuilder.Entity<AppUser>()
+            .HasIndex(user => user.ExternalId)
+            .IsUnique();
 
         modelBuilder.Entity<Recipe>()
             .HasOne(recipe => recipe.Category)

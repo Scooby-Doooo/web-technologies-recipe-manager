@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace RecipeManager.Web.Controllers.Api;
 [ApiController]
 [Route("api/recipes")]
 [AutoValidateAntiforgeryToken]
+[Authorize]
 public class RecipesApiController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -28,6 +30,7 @@ public class RecipesApiController : ControllerBase
         _logger = logger;
     }
 
+    [AllowAnonymous]
     [HttpGet]
     [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.RecipesTag)]
     public async Task<IActionResult> GetAll(
@@ -48,6 +51,7 @@ public class RecipesApiController : ControllerBase
         return Ok(new PageResponse<RecipeResponse>(recipes.Select(ToResponse).ToList(), skip, limit, nextLink));
     }
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.RecipesTag)]
     public async Task<ActionResult<RecipeResponse>> GetById(int id)

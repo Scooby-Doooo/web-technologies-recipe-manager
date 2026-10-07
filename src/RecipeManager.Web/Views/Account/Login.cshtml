@@ -1,0 +1,22 @@
+@{
+    ViewData["Title"] = "Sign in";
+    var googleConfigured = ViewData["GoogleConfigured"] as bool? == true;
+}
+
+<h1>Sign in</h1>
+<p>Browsing recipes is open to everyone. To add, edit or delete recipes, categories and
+    ingredients, sign in with your Google account. The first sign-in creates your Recipe Manager account.</p>
+
+@if (googleConfigured)
+{
+    <form asp-action="ExternalLogin" asp-route-returnUrl="@ViewData["ReturnUrl"]" method="post">
+        <button type="submit" class="btn btn-primary">Sign in with Google</button>
+    </form>
+}
+else
+{
+    <div class="alert alert-warning" role="alert">
+        Google sign-in is not configured on this server. Set <code>Authentication:Google:ClientId</code>
+        and <code>Authentication:Google:ClientSecret</code>, for example with <code>dotnet user-secrets</code>.
+    </div>
+}

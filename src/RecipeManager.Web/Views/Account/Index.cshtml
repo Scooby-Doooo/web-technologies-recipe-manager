@@ -1,0 +1,27 @@
+@model AppUser
+@{
+    ViewData["Title"] = "Your account";
+    var token = ViewData["ApiToken"] as string;
+}
+
+<h1>Your account</h1>
+<dl class="row">
+    <dt class="col-sm-3">Name</dt>
+    <dd class="col-sm-9">@Model.DisplayName</dd>
+    <dt class="col-sm-3">Email</dt>
+    <dd class="col-sm-9">@Model.Email</dd>
+    <dt class="col-sm-3">Registered</dt>
+    <dd class="col-sm-9"><time datetime="@Model.RegisteredAt.ToString("O")">@Model.RegisteredAt.ToString("yyyy-MM-dd HH:mm") UTC</time></dd>
+</dl>
+
+<h2 class="h4 mt-4">API token</h2>
+<p>Scripts and the MCP server call the JSON API without a browser. Send this token in the
+    <code>Authorization: Bearer &lt;token&gt;</code> header. It is shown only once and is valid for 8 hours.</p>
+@if (token != null)
+{
+    <label for="api-token" class="form-label">Token, valid until @(((DateTimeOffset)ViewData["ApiTokenExpires"]!).ToString("yyyy-MM-dd HH:mm")) UTC</label>
+    <textarea id="api-token" class="form-control font-monospace mb-3" rows="4" readonly>@token</textarea>
+}
+<form asp-action="ApiToken" method="post">
+    <button type="submit" class="btn btn-outline-primary">Create API token</button>
+</form>
