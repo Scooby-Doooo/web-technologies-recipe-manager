@@ -73,6 +73,8 @@ public class RecipeApiClient
     {
         var text = $"API returned {(int)response.StatusCode} {response.StatusCode}";
         if (response.StatusCode == HttpStatusCode.NotFound) return text + ": record not found.";
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            return text + ": sign in to Recipe Manager, create an API token on the account page and set RECIPE_API_TOKEN.";
         try
         {
             var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json, cancellationToken);
