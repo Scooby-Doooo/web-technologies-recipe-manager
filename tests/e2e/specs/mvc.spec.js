@@ -33,7 +33,7 @@ test('[C1-03] category and ingredient names enforce required and length rules', 
         // Submit an explicitly overlong value to verify the independent server rule as well.
         await page.getByLabel('Name', { exact: true }).evaluate(element => { element.value = 'N'.repeat(101); });
         const returned = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`/${controller}/Create`));
-        await page.locator('form').evaluate(form => form.submit());
+        await page.locator('main form').evaluate(form => form.submit());
         expect((await returned).status()).toBe(200);
         await expect(page.locator('[data-valmsg-for="Name"]')).toContainText('100');
         await expect(page).toHaveURL(new RegExp(`/${controller}/Create$`));
@@ -84,7 +84,7 @@ test('[C1-05] required fields, positive numbers and forged category reject inval
     expect(await page.locator('input[name="CookingTimeMinutes"]').evaluate(element => element.validity.valid)).toBe(false);
     await expect(page.locator('input[name="Servings"]')).toHaveValue('0');
     const returned = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/Recipes/Create'));
-    await page.locator('form').evaluate(form => form.submit());
+    await page.locator('main form').evaluate(form => form.submit());
     expect((await returned).status()).toBe(200);
     await expect(page.locator('[data-valmsg-for="CookingTimeMinutes"]')).not.toHaveText('');
     await expect(page.locator('[data-valmsg-for="Servings"]')).not.toHaveText('');
@@ -93,7 +93,7 @@ test('[C1-05] required fields, positive numbers and forged category reject inval
         select.append(new Option('Forged category', '2147483647', true, true));
     });
     const forged = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/Recipes/Create'));
-    await page.locator('form').evaluate(form => form.submit());
+    await page.locator('main form').evaluate(form => form.submit());
     expect((await forged).status()).toBe(200);
     await expect(page.locator('#categoryValidation')).toContainText('existing category');
 });
@@ -197,7 +197,7 @@ for (const [controller, id] of [['Categories', 'C1-10a'], ['Ingredients', 'C1-10
             await fillRecipe(page);
             await chooseCategory(page, 'Bre', 'Breakfast');
         } else await page.getByLabel('Name', { exact: true }).fill('QA2 blocked CSRF');
-        await page.locator('input[name="__RequestVerificationToken"]').evaluate(element => element.remove());
+        await page.locator('main input[name="__RequestVerificationToken"]').evaluate(element => element.remove());
         const rejected = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`/${controller}/Create`));
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         expect((await rejected).status()).toBe(400);

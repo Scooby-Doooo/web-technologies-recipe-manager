@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures.js';
+import { test, expect, signIn } from '../fixtures.js';
 import { chooseCategory, fillRecipe, save, search } from '../helpers.js';
 
 const lookup = response => response.url().includes('/Recipes/CategoryOptions?');
@@ -100,7 +100,7 @@ test('[F2-05] visible validation and server validation retain the selected categ
     await expect(page.locator('[data-valmsg-for="Title"]')).toContainText('required');
     await expect(page.locator('#CategoryId')).toHaveValue('3');
     const returned = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/Recipes/Create'));
-    await page.locator('form').evaluate(form => form.submit()); // Exercise server validation independently of the client gate.
+    await page.locator('main form').evaluate(form => form.submit()); // Exercise server validation independently of the client gate.
     expect((await returned).status()).toBe(200);
     await expect(page.locator('#CategoryId')).toHaveValue('3');
     await expect(page.getByRole('combobox', { name: /^Category/ })).toContainText('Dessert');
@@ -167,6 +167,7 @@ test('[F2-09] missing library and JavaScript-disabled edit show fallback guidanc
     const recipe = await data.recipe({ title: 'QA2 no JavaScript edit' });
     const context = await browser.newContext({ baseURL: app.baseURL, javaScriptEnabled: false });
     try {
+        await signIn(context.request);
         const plain = await context.newPage();
         await plain.goto('/Recipes/Edit/' + recipe.id);
         await expect(plain.locator('#category-search-status')).toBeVisible();

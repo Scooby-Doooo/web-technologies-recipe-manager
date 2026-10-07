@@ -49,6 +49,12 @@ async function stop(child) {
     await closed;
 }
 
+// Uses the Development-only test sign-in, so the suite never needs a Google account.
+export async function signIn(request, email = 'qa@example.test') {
+    const response = await request.post('/Account/TestSignIn', { params: { email } });
+    expect(response.status(), 'Test sign-in is enabled for the owned server').toBe(204);
+}
+
 export const test = base.extend({
     app: [async ({}, use) => {
         const before = protectedFiles();
@@ -71,6 +77,7 @@ export const test = base.extend({
             const env = { ...process.env, ASPNETCORE_ENVIRONMENT: 'Development',
                 ConnectionStrings__DefaultConnection: `Data Source=${database}`,
                 Analytics__MeasurementId: 'G-QA2TEST000',
+                Authentication__EnableTestSignIn: 'true',
                 Logging__LogLevel__Default: 'Warning' };
             delete env.ASPNETCORE_HTTPS_PORT;
             delete env.ASPNETCORE_HTTPS_PORTS;
@@ -105,6 +112,7 @@ export const test = base.extend({
         page.on('pageerror', error => errors.push(error.message));
         // Tests must not report visits to the real Google Analytics property.
         await page.route('https://www.googletagmanager.com/**', route => route.fulfill({ contentType: 'text/javascript', body: '' }));
+        await signIn(page.request);
         page.on('response', response => {
             const url = new URL(response.url());
             if (/^\/(Recipes|Categories|Ingredients)(\/|$)/.test(url.pathname)) {
@@ -117,6 +125,7 @@ export const test = base.extend({
         expect(errors, 'No JavaScript page exceptions').toEqual([]);
     },
     data: async ({ request, app }, use) => {
+        await signIn(request);
         const tokenResponse = await request.get('/api/antiforgery');
         expect(tokenResponse.status()).toBe(200);
         const { requestToken, headerName } = await tokenResponse.json();
