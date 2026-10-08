@@ -41,6 +41,41 @@
    "name": "01 - Setup",
    "item": [
     {
+     "name": "Sign in as the test user",
+     "request": {
+      "method": "POST",
+      "header": [],
+      "url": "{{baseUrl}}/Account/TestSignIn?email=postman@example.test"
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "{",
+         "pm.variables.set('expectedStatus', 204);",
+         "}"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "{",
+         "// Writes require a signed-in user. The Development-only test sign-in replaces Google here.",
+         "pm.test('Authentication cookie is issued', function () {",
+         "    pm.expect((pm.response.headers.get('Set-Cookie') || '').includes('.AspNetCore.Cookies')).to.equal(true);",
+         "});",
+         "}"
+        ]
+       }
+      }
+     ]
+    },
+    {
      "name": "Get antiforgery token",
      "request": {
       "method": "GET",
