@@ -78,6 +78,8 @@ export const test = base.extend({
                 ConnectionStrings__DefaultConnection: `Data Source=${database}`,
                 Analytics__MeasurementId: 'G-QA2TEST000',
                 Authentication__EnableTestSignIn: 'true',
+                // Development loads the developer's user secrets; the suite never uses a real Google client.
+                Authentication__Google__ClientId: '',
                 Logging__LogLevel__Default: 'Warning' };
             delete env.ASPNETCORE_HTTPS_PORT;
             delete env.ASPNETCORE_HTTPS_PORTS;
