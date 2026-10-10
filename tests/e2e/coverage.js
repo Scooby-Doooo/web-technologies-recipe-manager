@@ -28,7 +28,8 @@ const expectedCases = [
     'C1-10a', 'C1-10b', 'C1-10c',
     ...Array.from({ length: 10 }, (_, i) => 'F2-' + String(i + 1).padStart(2, '0')), 'REG-01',
     'SEO-01', 'SEO-02', 'C9-01', 'C9-02',
-    'AUTH-01', 'AUTH-02', 'AUTH-03'
+    'AUTH-01', 'AUTH-02', 'AUTH-03',
+    'B5-01', 'B5-02', 'B5-03', 'B5-04'
 ];
 const expectedRoutes = [];
 for (const controller of ['Recipes', 'Categories', 'Ingredients']) {
