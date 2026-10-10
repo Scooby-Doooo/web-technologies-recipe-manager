@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
@@ -31,8 +32,29 @@ var authentication = builder.Services.AddAuthentication(CookieOrBearer)
         // The API answers with a status code; only MVC pages redirect to the sign-in page.
         options.Events.OnRedirectToLogin = context => RedirectOrStatus(context, StatusCodes.Status401Unauthorized);
         options.Events.OnRedirectToAccessDenied = context => RedirectOrStatus(context, StatusCodes.Status403Forbidden);
+        // Cookies issued before kitchens existed have no kitchen; such users simply sign in again.
+        options.Events.OnValidatePrincipal = async context =>
+        {
+            if (context.Principal?.FindFirst(TenantContext.TenantIdClaim) == null)
+            {
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            }
+        };
     })
     .AddBearerToken(options => options.BearerTokenExpiration = TimeSpan.FromHours(8));
+
+// [Authorize] also needs a kitchen, so an old token without one cannot write into the public kitchen.
+builder.Services.AddAuthorization(options => options.DefaultPolicy = new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .RequireClaim(TenantContext.TenantIdClaim)
+    .Build());
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<TenantContext>();
+
+// Emails that join the public demo kitchen on sign-in, so its owner can edit the public recipes.
+// Kept in user secrets or environment variables, not in the repository.
+var publicKitchenMembers = builder.Configuration.GetSection("Tenancy:PublicKitchenMembers").Get<string[]>() ?? [];
 
 var google = builder.Configuration.GetSection("Authentication:Google");
 if (!string.IsNullOrEmpty(google["ClientId"]))
@@ -43,7 +65,9 @@ if (!string.IsNullOrEmpty(google["ClientId"]))
         options.ClientSecret = google["ClientSecret"]!;
         options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         options.Events.OnCreatingTicket = async context => await UserRegistration.RegisterOrUpdateAsync(
-            context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>(), context.Identity!, "Google");
+            context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>(), context.Identity!, "Google",
+            joinPublicKitchen: publicKitchenMembers.Contains(context.Identity!.FindFirst(ClaimTypes.Email)?.Value,
+                StringComparer.OrdinalIgnoreCase));
     });
 }
 
@@ -96,9 +120,9 @@ app.UseHttpsRedirection();
 // Uploaded images are created at runtime and are not in the build-time static asset manifest.
 app.UseStaticFiles();
 app.UseRouting();
-app.UseOutputCache();
-
+// Authentication runs first, so the output cache can keep each kitchen's API responses apart.
 app.UseAuthentication();
+app.UseOutputCache();
 app.UseAuthorization();
 
 app.MapStaticAssets();
@@ -109,7 +133,8 @@ app.MapControllers();
 // Authentication:EnableTestSignIn is set, which the E2E and Postman test runs do.
 if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Authentication:EnableTestSignIn"))
 {
-    app.MapPost("/Account/TestSignIn", async (HttpContext http, ApplicationDbContext db, string? email) =>
+    // Test users join the public kitchen with its seeded data unless a test asks for an own kitchen.
+    app.MapPost("/Account/TestSignIn", async (HttpContext http, ApplicationDbContext db, string? email, string? kitchen) =>
     {
         email = string.IsNullOrWhiteSpace(email) ? "qa@example.test" : email.Trim();
         var identity = new ClaimsIdentity([
@@ -117,7 +142,7 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Authent
             new Claim(ClaimTypes.Email, email),
             new Claim(ClaimTypes.Name, "Test user " + email)
         ], CookieAuthenticationDefaults.AuthenticationScheme);
-        await UserRegistration.RegisterOrUpdateAsync(db, identity, "Test");
+        await UserRegistration.RegisterOrUpdateAsync(db, identity, "Test", joinPublicKitchen: kitchen != "own");
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
         return Results.NoContent();
     });

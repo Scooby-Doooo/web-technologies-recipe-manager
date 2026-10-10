@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
+using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Controllers;
 
@@ -36,7 +37,9 @@ public class SeoController : Controller
     public async Task<ContentResult> Sitemap(CancellationToken cancellationToken)
     {
         var site = SiteUrl();
-        var recipeIds = await _context.Recipes.AsNoTracking()
+        // Only the public kitchen is visible to search engines, whoever asks for the sitemap.
+        var recipeIds = await _context.Recipes.IgnoreQueryFilters().AsNoTracking()
+            .Where(recipe => recipe.TenantId == Tenant.PublicId)
             .OrderBy(recipe => recipe.Id).Select(recipe => recipe.Id)
             .ToListAsync(cancellationToken);
 

@@ -1,27 +1,81 @@
-@model AppUser
+@model AccountViewModel
 @{
     ViewData["Title"] = "Your account";
     var token = ViewData["ApiToken"] as string;
 }
 
 <h1>Your account</h1>
+@if (TempData["AccountMessage"] is string message)
+{
+    <div class="alert alert-success" role="status">@message</div>
+}
+@if (TempData["AccountError"] is string error)
+{
+    <div class="alert alert-danger" role="alert">@error</div>
+}
 <dl class="row">
     <dt class="col-sm-3">Name</dt>
-    <dd class="col-sm-9">@Model.DisplayName</dd>
+    <dd class="col-sm-9">@Model.User.DisplayName</dd>
     <dt class="col-sm-3">Email</dt>
-    <dd class="col-sm-9">@Model.Email</dd>
+    <dd class="col-sm-9">@Model.User.Email</dd>
     <dt class="col-sm-3">Registered</dt>
-    <dd class="col-sm-9"><time datetime="@Model.RegisteredAt.ToString("O")">@Model.RegisteredAt.ToString("yyyy-MM-dd HH:mm") UTC</time></dd>
+    <dd class="col-sm-9"><time datetime="@Model.User.RegisteredAt.ToString("O")">@Model.User.RegisteredAt.ToString("yyyy-MM-dd HH:mm") UTC</time></dd>
 </dl>
 
-<h2 class="h4 mt-4">API token</h2>
-<p>Scripts and the MCP server call the JSON API without a browser. Send this token in the
-    <code>Authorization: Bearer &lt;token&gt;</code> header. It is shown only once and is valid for 8 hours.</p>
-@if (token != null)
-{
-    <label for="api-token" class="form-label">Token, valid until @(((DateTimeOffset)ViewData["ApiTokenExpires"]!).ToString("yyyy-MM-dd HH:mm")) UTC</label>
-    <textarea id="api-token" class="form-control font-monospace mb-3" rows="4" readonly>@token</textarea>
-}
-<form asp-action="ApiToken" method="post">
-    <button type="submit" class="btn btn-outline-primary">Create API token</button>
-</form>
+<section aria-labelledby="kitchen-title" class="mt-4">
+    <h2 id="kitchen-title" class="h4">Kitchen: @Model.Kitchen.Name</h2>
+    <p>Recipes, categories and ingredients belong to a kitchen. Only its members can see and change them.</p>
+
+    <form asp-action="RenameKitchen" method="post" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-6">
+            <label for="kitchen-name" class="form-label">Kitchen name</label>
+            <input id="kitchen-name" name="name" class="form-control" value="@Model.Kitchen.Name" maxlength="100" required />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-outline-secondary">Rename</button>
+        </div>
+    </form>
+
+    @if (Model.Kitchen.InviteCode != null)
+    {
+        <p>Invite code: <code id="invite-code" class="fs-5">@Model.Kitchen.InviteCode</code>.
+            Anyone who enters it below joins this kitchen.</p>
+    }
+    else
+    {
+        <p>This is the public demo kitchen that visitors see without signing in. It cannot be joined with a code.</p>
+    }
+
+    <h3 class="h6">Members</h3>
+    <ul id="kitchen-members">
+        @foreach (var member in Model.Members)
+        {
+            <li>@member.DisplayName (@member.Email)</li>
+        }
+    </ul>
+
+    <form asp-action="JoinKitchen" method="post" class="row g-2 align-items-end">
+        <div class="col-sm-4">
+            <label for="invite-code-input" class="form-label">Join another kitchen</label>
+            <input id="invite-code-input" name="inviteCode" class="form-control text-uppercase" maxlength="16" required autocomplete="off" />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-outline-primary">Join</button>
+        </div>
+    </form>
+</section>
+
+<section aria-labelledby="token-title" class="mt-4">
+    <h2 id="token-title" class="h4">API token</h2>
+    <p>Scripts and the MCP server call the JSON API without a browser. Send this token in the
+        <code>Authorization: Bearer &lt;token&gt;</code> header. It is shown only once and is valid for 8 hours.
+        It works with the kitchen you are in when you create it.</p>
+    @if (token != null)
+    {
+        <label for="api-token" class="form-label">Token, valid until @(((DateTimeOffset)ViewData["ApiTokenExpires"]!).ToString("yyyy-MM-dd HH:mm")) UTC</label>
+        <textarea id="api-token" class="form-control font-monospace mb-3" rows="4" readonly>@token</textarea>
+    }
+    <form asp-action="ApiToken" method="post">
+        <button type="submit" class="btn btn-outline-primary">Create API token</button>
+    </form>
+</section>

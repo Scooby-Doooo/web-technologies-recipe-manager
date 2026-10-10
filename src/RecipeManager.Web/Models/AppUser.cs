@@ -23,4 +23,10 @@ public class AppUser
     public DateTime RegisteredAt { get; set; }
 
     public DateTime LastSignInAt { get; set; }
+
+    // The kitchen the user works in. Null only for accounts created before kitchens existed;
+    // they get a kitchen on their next sign-in.
+    public int? TenantId { get; set; }
+
+    public Tenant? Tenant { get; set; }
 }

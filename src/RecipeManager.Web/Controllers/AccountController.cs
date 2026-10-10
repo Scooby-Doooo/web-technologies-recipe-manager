@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RecipeManager.Web.Data;
+using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Controllers;
 
@@ -55,9 +56,51 @@ public class AccountController : Controller
     [Authorize]
     public async Task<IActionResult> Index()
     {
-        var user = await CurrentUser();
+        var model = await AccountModel();
+        if (model == null) return await SignOutMissingUser();
+        return View(model);
+    }
+
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RenameKitchen(string? name)
+    {
+        var user = await CurrentUser(tracking: true);
+        if (user?.Tenant == null) return await SignOutMissingUser();
+        name = name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 100)
+        {
+            TempData["AccountError"] = "Kitchen name must have from 1 to 100 characters.";
+            return RedirectToAction(nameof(Index));
+        }
+        user.Tenant.Name = name;
+        await _context.SaveChangesAsync();
+        await RefreshKitchenClaims(user.Tenant);
+        TempData["AccountMessage"] = "Kitchen renamed.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    // Moves the user into another kitchen. Their previous kitchen and its recipes stay as they are.
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> JoinKitchen(string? inviteCode)
+    {
+        var user = await CurrentUser(tracking: true);
         if (user == null) return await SignOutMissingUser();
-        return View(user);
+        var code = inviteCode?.Trim().ToUpperInvariant();
+        var kitchen = string.IsNullOrEmpty(code) ? null : await _context.Tenants.FirstOrDefaultAsync(tenant => tenant.InviteCode == code);
+        if (kitchen == null)
+        {
+            TempData["AccountError"] = "No kitchen has this invite code.";
+            return RedirectToAction(nameof(Index));
+        }
+        user.Tenant = kitchen;
+        await _context.SaveChangesAsync();
+        await RefreshKitchenClaims(kitchen);
+        TempData["AccountMessage"] = $"You joined {kitchen.Name}.";
+        return RedirectToAction(nameof(Index));
     }
 
     // Issues a bearer token for API clients that cannot use the browser cookie, e.g. the MCP server.
@@ -67,8 +110,8 @@ public class AccountController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> ApiToken()
     {
-        var user = await CurrentUser();
-        if (user == null) return await SignOutMissingUser();
+        var model = await AccountModel();
+        if (model == null) return await SignOutMissingUser();
 
         var options = _bearerOptions.Get(BearerTokenDefaults.AuthenticationScheme);
         var expires = DateTimeOffset.UtcNow.Add(options.BearerTokenExpiration);
@@ -78,14 +121,34 @@ public class AccountController : Controller
 
         ViewData["ApiToken"] = options.BearerTokenProtector.Protect(ticket);
         ViewData["ApiTokenExpires"] = expires;
-        return View(nameof(Index), user);
+        return View(nameof(Index), model);
     }
 
-    private Task<Models.AppUser?> CurrentUser()
+    private async Task<AppUser?> CurrentUser(bool tracking = false)
     {
-        return int.TryParse(User.FindFirst(UserRegistration.UserIdClaim)?.Value, out var id)
-            ? _context.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == id)
-            : Task.FromResult<Models.AppUser?>(null);
+        if (!int.TryParse(User.FindFirst(UserRegistration.UserIdClaim)?.Value, out var id)) return null;
+        var users = tracking ? _context.Users : _context.Users.AsNoTracking();
+        return await users.Include(user => user.Tenant).FirstOrDefaultAsync(user => user.Id == id);
+    }
+
+    private async Task<AccountViewModel?> AccountModel()
+    {
+        var user = await CurrentUser();
+        if (user?.Tenant == null) return null;
+        var members = await _context.Users.AsNoTracking()
+            .Where(member => member.TenantId == user.TenantId)
+            .OrderBy(member => member.RegisteredAt)
+            .ToListAsync();
+        return new AccountViewModel { User = user, Kitchen = user.Tenant, Members = members };
+    }
+
+    // The kitchen lives in the cookie's claims, so the cookie is reissued after it changes.
+    // Bearer tokens issued earlier keep their old kitchen until they expire.
+    private async Task RefreshKitchenClaims(Tenant kitchen)
+    {
+        var identity = new ClaimsIdentity(User.Claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        UserRegistration.AddKitchenClaims(identity, kitchen);
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
     }
 
     // A cookie can outlive its account, e.g. after the database is recreated.

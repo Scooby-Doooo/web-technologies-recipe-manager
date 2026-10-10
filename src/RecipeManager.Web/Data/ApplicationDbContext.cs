@@ -5,16 +5,48 @@ namespace RecipeManager.Web.Data;
 
 public class ApplicationDbContext : DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    private readonly TenantContext _tenant;
+
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, TenantContext tenant)
         : base(options)
     {
+        _tenant = tenant;
     }
+
+    // Read by the query filters on every query, so each request sees only its own kitchen.
+    public int CurrentTenantId => _tenant.TenantId;
 
     public DbSet<Recipe> Recipes { get; set; }
     public DbSet<Category> Categories { get; set; }
     public DbSet<Ingredient> Ingredients { get; set; }
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; }
     public DbSet<AppUser> Users { get; set; }
+    public DbSet<Tenant> Tenants { get; set; }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampTenant();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        StampTenant();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    // New rows join the current kitchen unless code sets a kitchen on purpose (seeding a new one).
+    // Changing another kitchen's rows is a bug, not a user error.
+    private void StampTenant()
+    {
+        foreach (var entry in ChangeTracker.Entries<ITenantOwned>())
+        {
+            if (entry.State == EntityState.Added && entry.Entity.TenantId == 0)
+                entry.Entity.TenantId = CurrentTenantId;
+            else if ((entry.State is EntityState.Modified or EntityState.Deleted) && entry.Entity.TenantId != CurrentTenantId)
+                throw new InvalidOperationException("A change crosses kitchens.");
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +58,32 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.ExternalId)
             .IsUnique();
+
+        modelBuilder.Entity<Tenant>()
+            .HasIndex(tenant => tenant.InviteCode)
+            .IsUnique();
+
+        modelBuilder.Entity<AppUser>()
+            .HasOne(user => user.Tenant)
+            .WithMany()
+            .HasForeignKey(user => user.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Recipe>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Category>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Ingredient>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Recipe>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Category>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
+        modelBuilder.Entity<Ingredient>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
+        modelBuilder.Entity<RecipeIngredient>().HasQueryFilter(item => item.Recipe.TenantId == CurrentTenantId);
+
+        modelBuilder.Entity<Tenant>().HasData(new Tenant
+        {
+            Id = Tenant.PublicId,
+            Name = "Public demo kitchen",
+            CreatedAt = new DateTime(2026, 9, 27, 0, 0, 0, DateTimeKind.Utc)
+        });
 
         modelBuilder.Entity<Recipe>()
             .HasOne(recipe => recipe.Category)
@@ -45,19 +103,10 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(item => item.IngredientId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<Category>().HasData(
-            new Category { Id = 1, Name = "Breakfast" },
-            new Category { Id = 2, Name = "Main Course" },
-            new Category { Id = 3, Name = "Dessert" },
-            new Category { Id = 4, Name = "Salad" });
-
-        modelBuilder.Entity<Ingredient>().HasData(
-            new Ingredient { Id = 1, Name = "Egg" },
-            new Ingredient { Id = 2, Name = "Flour" },
-            new Ingredient { Id = 3, Name = "Milk" },
-            new Ingredient { Id = 4, Name = "Tomato" },
-            new Ingredient { Id = 5, Name = "Chicken Breast" },
-            new Ingredient { Id = 6, Name = "Parmesan" },
-            new Ingredient { Id = 7, Name = "Spaghetti" });
+        // The public kitchen starts with the same reference data that every new kitchen gets.
+        modelBuilder.Entity<Category>().HasData(DefaultKitchenData.Categories
+            .Select((name, index) => new Category { Id = index + 1, Name = name, TenantId = Tenant.PublicId }));
+        modelBuilder.Entity<Ingredient>().HasData(DefaultKitchenData.Ingredients
+            .Select((name, index) => new Ingredient { Id = index + 1, Name = name, TenantId = Tenant.PublicId }));
     }
 }

@@ -3,9 +3,13 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace RecipeManager.Web.Models;
 
-public class Category
+public class Category : ITenantOwned
 {
     public int Id { get; set; }
+
+    // Set from the signed-in user on insert; forms and the API never bind it.
+    [ValidateNever]
+    public int TenantId { get; set; }
 
     [Required]
     [StringLength(100)]

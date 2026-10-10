@@ -44,10 +44,15 @@ namespace RecipeManager.Web.Migrations
                     b.Property<DateTime>("RegisteredAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ExternalId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Users");
                 });
@@ -63,7 +68,12 @@ namespace RecipeManager.Web.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Categories");
 
@@ -71,22 +81,26 @@ namespace RecipeManager.Web.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "Breakfast"
+                            Name = "Breakfast",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 2,
-                            Name = "Main Course"
+                            Name = "Main Course",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 3,
-                            Name = "Dessert"
+                            Name = "Dessert",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 4,
-                            Name = "Salad"
+                            Name = "Salad",
+                            TenantId = 1
                         });
                 });
 
@@ -101,7 +115,12 @@ namespace RecipeManager.Web.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Ingredients");
 
@@ -109,37 +128,44 @@ namespace RecipeManager.Web.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "Egg"
+                            Name = "Egg",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 2,
-                            Name = "Flour"
+                            Name = "Flour",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 3,
-                            Name = "Milk"
+                            Name = "Milk",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 4,
-                            Name = "Tomato"
+                            Name = "Tomato",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 5,
-                            Name = "Chicken Breast"
+                            Name = "Chicken Breast",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 6,
-                            Name = "Parmesan"
+                            Name = "Parmesan",
+                            TenantId = 1
                         },
                         new
                         {
                             Id = 7,
-                            Name = "Spaghetti"
+                            Name = "Spaghetti",
+                            TenantId = 1
                         });
                 });
 
@@ -170,6 +196,9 @@ namespace RecipeManager.Web.Migrations
                     b.Property<int>("Servings")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -178,6 +207,8 @@ namespace RecipeManager.Web.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Recipes");
                 });
@@ -205,11 +236,79 @@ namespace RecipeManager.Web.Migrations
                     b.ToTable("RecipeIngredients");
                 });
 
+            modelBuilder.Entity("RecipeManager.Web.Models.Tenant", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InviteCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InviteCode")
+                        .IsUnique();
+
+                    b.ToTable("Tenants");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedAt = new DateTime(2026, 9, 27, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Public demo kitchen"
+                        });
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.AppUser", b =>
+                {
+                    b.HasOne("RecipeManager.Web.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.Category", b =>
+                {
+                    b.HasOne("RecipeManager.Web.Models.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.Ingredient", b =>
+                {
+                    b.HasOne("RecipeManager.Web.Models.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("RecipeManager.Web.Models.Recipe", b =>
                 {
                     b.HasOne("RecipeManager.Web.Models.Category", "Category")
                         .WithMany("Recipes")
                         .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RecipeManager.Web.Models.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

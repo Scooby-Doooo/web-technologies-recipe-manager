@@ -93,7 +93,10 @@
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Index">@User.Identity.Name</a>
+                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Index">
+                                    @User.Identity.Name
+                                    <span class="text-muted small">· @User.FindFirst(RecipeManager.Web.Data.TenantContext.TenantNameClaim)?.Value</span>
+                                </a>
                             </li>
                             <li class="nav-item">
                                 <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
