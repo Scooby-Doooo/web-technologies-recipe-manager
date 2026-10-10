@@ -36,3 +36,20 @@ export async function recipeId(page, title) {
 }
 
 export const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aOxoAAAAASUVORK5CYII=', 'base64');
+
+// A browser context signed in as a user with an own kitchen (not the shared public one).
+export async function kitchenUser(browser, app, name) {
+    const context = await browser.newContext({ baseURL: app.baseURL });
+    const email = `qa2-${name}-${Date.now()}@example.test`;
+    const signIn = await context.request.post('/Account/TestSignIn', { params: { email, kitchen: 'own' } });
+    expect(signIn.status()).toBe(204);
+    const { requestToken, headerName } = await (await context.request.get('/api/antiforgery')).json();
+    const headers = { [headerName]: requestToken };
+    const api = {
+        get: path => context.request.get(path),
+        post: (path, data) => context.request.post(path, { headers, data }),
+        put: (path, data) => context.request.put(path, { headers, data }),
+        delete: path => context.request.delete(path, { headers })
+    };
+    return { context, email, api, page: await context.newPage() };
+}

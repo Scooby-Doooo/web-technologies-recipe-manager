@@ -1,21 +1,5 @@
 import { test, expect } from '../fixtures.js';
-
-// A browser context signed in as a user with an own kitchen (not the shared public one).
-async function kitchenUser(browser, app, name) {
-    const context = await browser.newContext({ baseURL: app.baseURL });
-    const email = `qa2-${name}-${Date.now()}@example.test`;
-    const signIn = await context.request.post('/Account/TestSignIn', { params: { email, kitchen: 'own' } });
-    expect(signIn.status()).toBe(204);
-    const { requestToken, headerName } = await (await context.request.get('/api/antiforgery')).json();
-    const headers = { [headerName]: requestToken };
-    const api = {
-        get: path => context.request.get(path),
-        post: (path, data) => context.request.post(path, { headers, data }),
-        put: (path, data) => context.request.put(path, { headers, data }),
-        delete: path => context.request.delete(path, { headers })
-    };
-    return { context, email, api, page: await context.newPage() };
-}
+import { kitchenUser } from '../helpers.js';
 
 async function withKitchens(browser, app, run) {
     const alice = await kitchenUser(browser, app, 'alice');
