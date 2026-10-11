@@ -1,8 +1,11 @@
 @model AccountViewModel
 @inject RecipeManager.Web.Features.RecipeLimit RecipeLimit
+@inject Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.BearerToken.BearerTokenOptions> BearerOptions
 @{
     ViewData["Title"] = "Your account";
     var token = ViewData["ApiToken"] as string;
+    var tokenLifetime = BearerOptions.Get(Microsoft.AspNetCore.Authentication.BearerToken.BearerTokenDefaults.AuthenticationScheme).BearerTokenExpiration;
+    var tokenLifetimeText = tokenLifetime.TotalHours >= 1 ? $"{tokenLifetime.TotalHours:0.#} hours" : $"{tokenLifetime.TotalMinutes:0.#} minutes";
 }
 
 <h1>Your account</h1>
@@ -86,7 +89,7 @@
 <section aria-labelledby="token-title" class="mt-4">
     <h2 id="token-title" class="h4">API token</h2>
     <p>Scripts and the MCP server call the JSON API without a browser. Send this token in the
-        <code>Authorization: Bearer &lt;token&gt;</code> header. It is shown only once and is valid for 8 hours.
+        <code>Authorization: Bearer &lt;token&gt;</code> header. It is shown only once and is valid for @tokenLifetimeText.
         It works with the kitchen you are in when you create it.</p>
     @if (token != null)
     {

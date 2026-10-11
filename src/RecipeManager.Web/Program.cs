@@ -46,7 +46,8 @@ var authentication = builder.Services.AddAuthentication(CookieOrBearer)
             }
         };
     })
-    .AddBearerToken(options => options.BearerTokenExpiration = TimeSpan.FromHours(8));
+    .AddBearerToken(options => options.BearerTokenExpiration =
+        builder.Configuration.GetValue("Authentication:ApiTokenLifetime", TimeSpan.FromHours(8)));
 
 // [Authorize] also needs a kitchen, so an old token without one cannot write into the public kitchen.
 builder.Services.AddAuthorization(options => options.DefaultPolicy = new AuthorizationPolicyBuilder()
