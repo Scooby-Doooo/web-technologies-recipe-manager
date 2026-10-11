@@ -1,0 +1,9 @@
+@{
+    ViewData["Title"] = "Premium feature";
+    var reason = ViewData["Reason"] as string ?? "This page is part of the Premium plan.";
+}
+
+<h1>Premium feature</h1>
+<div class="alert alert-info" role="alert">@reason</div>
+<p>Plans belong to a kitchen. Any member can switch the kitchen to Premium on the account page.</p>
+<a asp-controller="Account" asp-action="Index" class="btn btn-primary">Open your account</a>

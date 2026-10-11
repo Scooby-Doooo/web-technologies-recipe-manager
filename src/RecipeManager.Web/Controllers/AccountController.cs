@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RecipeManager.Web.Data;
+using RecipeManager.Web.Features;
 using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Controllers;
@@ -78,6 +79,25 @@ public class AccountController : Controller
         await _context.SaveChangesAsync();
         await RefreshKitchenClaims(user.Tenant);
         TempData["AccountMessage"] = "Kitchen renamed.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    // There is no billing in this project: any member switches the kitchen's plan, and the feature
+    // flags configured for that plan apply from the next request.
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePlan(string? plan)
+    {
+        var user = await CurrentUser(tracking: true);
+        if (user?.Tenant == null) return await SignOutMissingUser();
+        // The public showcase kitchen always stays on Premium.
+        if (user.Tenant.Id == Tenant.PublicId) return BadRequest();
+        var chosen = Plans.All.FirstOrDefault(item => string.Equals(item, plan, StringComparison.OrdinalIgnoreCase));
+        if (chosen == null) return BadRequest();
+        user.Tenant.Plan = chosen;
+        await _context.SaveChangesAsync();
+        TempData["AccountMessage"] = $"{user.Tenant.Name} is now on the {chosen} plan.";
         return RedirectToAction(nameof(Index));
     }
 

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
+using RecipeManager.Web.Features;
 using RecipeManager.Web.Models;
 using RecipeManager.Web.Models.Api;
 
@@ -62,8 +63,10 @@ public class RecipesApiController : ControllerBase
 
     [HttpPost]
     [Consumes("application/json")]
-    public async Task<ActionResult<RecipeResponse>> Create([FromBody] RecipeRequest request)
+    public async Task<ActionResult<RecipeResponse>> Create([FromBody] RecipeRequest request, [FromServices] RecipeLimit limit)
     {
+        if (!await limit.CanAddRecipeAsync())
+            return Problem(title: limit.Message, statusCode: StatusCodes.Status403Forbidden);
         if (!await _context.Categories.AnyAsync(category => category.Id == request.CategoryId))
         {
             ModelState.AddModelError(nameof(request.CategoryId), "Please select an existing category.");

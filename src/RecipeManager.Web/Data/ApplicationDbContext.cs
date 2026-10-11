@@ -82,6 +82,8 @@ public class ApplicationDbContext : DbContext
         {
             Id = Tenant.PublicId,
             Name = "Public demo kitchen",
+            // The showcase kitchen has every feature, so its recipes are never capped.
+            Plan = Features.Plans.Premium,
             CreatedAt = new DateTime(2026, 9, 27, 0, 0, 0, DateTimeKind.Utc)
         });
 

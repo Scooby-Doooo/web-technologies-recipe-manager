@@ -21,4 +21,9 @@ public class Tenant
     public string? InviteCode { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    // Free or Premium; feature flags decide what each plan unlocks.
+    [Required]
+    [StringLength(20)]
+    public string Plan { get; set; } = Features.Plans.Free;
 }

@@ -254,6 +254,11 @@ namespace RecipeManager.Web.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InviteCode")
@@ -266,7 +271,8 @@ namespace RecipeManager.Web.Migrations
                         {
                             Id = 1,
                             CreatedAt = new DateTime(2026, 9, 27, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Name = "Public demo kitchen"
+                            Name = "Public demo kitchen",
+                            Plan = "Premium"
                         });
                 });
 

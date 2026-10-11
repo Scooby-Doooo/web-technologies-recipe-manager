@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
+using RecipeManager.Web.Features;
 using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Controllers;
@@ -26,6 +27,14 @@ public class RecipesController : Controller
         _logger = logger;
     }
 
+    private ViewResult LimitReached(RecipeLimit limit)
+    {
+        ViewData["Reason"] = limit.Message;
+        var result = View("PremiumRequired");
+        result.StatusCode = StatusCodes.Status403Forbidden;
+        return result;
+    }
+
     [AllowAnonymous]
     public async Task<IActionResult> Index()
     {
@@ -47,8 +56,9 @@ public class RecipesController : Controller
         return View(recipe);
     }
 
-    public async Task<IActionResult> Create()
+    public async Task<IActionResult> Create([FromServices] RecipeLimit limit)
     {
+        if (!await limit.CanAddRecipeAsync()) return LimitReached(limit);
         await PopulateCategories();
         return View(new Recipe { CookingTimeMinutes = 30, Servings = 2 });
     }
@@ -82,8 +92,9 @@ public class RecipesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(
         [Bind("Title,Description,Instructions,CookingTimeMinutes,Servings,CategoryId")] Recipe recipe,
-        IFormFile? imageFile)
+        IFormFile? imageFile, [FromServices] RecipeLimit limit)
     {
+        if (!await limit.CanAddRecipeAsync()) return LimitReached(limit);
         if (!await _context.Categories.AnyAsync(category => category.Id == recipe.CategoryId))
             ModelState.AddModelError(nameof(Recipe.CategoryId), "Please select an existing category.");
 

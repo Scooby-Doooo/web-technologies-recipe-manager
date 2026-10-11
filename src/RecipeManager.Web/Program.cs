@@ -4,8 +4,12 @@ using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.FeatureManagement;
 using RecipeManager.Web.Data;
+using RecipeManager.Web.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +55,17 @@ builder.Services.AddAuthorization(options => options.DefaultPolicy = new Authori
     .Build());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TenantContext>();
+
+// Plans are feature flags: the "Plan" filter turns a flag on for kitchens on the listed plans.
+builder.Services.AddFeatureManagement()
+    .AddFeatureFilter<PlanFeatureFilter>()
+    .UseDisabledFeaturesHandler((_, context) => context.Result = new ViewResult
+    {
+        ViewName = "PremiumRequired",
+        StatusCode = StatusCodes.Status403Forbidden,
+        ViewData = new ViewDataDictionary(new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider(), context.ModelState)
+    });
+builder.Services.AddScoped<RecipeLimit>();
 
 // Emails that join the public demo kitchen on sign-in, so its owner can edit the public recipes.
 // Kept in user secrets or environment variables, not in the repository.

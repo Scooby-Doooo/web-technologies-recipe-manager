@@ -1,4 +1,5 @@
 @model AccountViewModel
+@inject RecipeManager.Web.Features.RecipeLimit RecipeLimit
 @{
     ViewData["Title"] = "Your account";
     var token = ViewData["ApiToken"] as string;
@@ -44,6 +45,23 @@
     else
     {
         <p>This is the public demo kitchen that visitors see without signing in. It cannot be joined with a code.</p>
+    }
+
+    <h3 class="h6">Plan: <span id="kitchen-plan">@Model.Kitchen.Plan</span></h3>
+    <p>Premium adds the <a asp-controller="Export" asp-action="Index">recipe export</a> page and removes
+        the limit of @RecipeLimit.Limit recipes per kitchen of the Free plan. There is no payment in this demo.</p>
+    @if (Model.Kitchen.Id != Tenant.PublicId)
+    {
+        <form asp-action="ChangePlan" method="post" class="mb-3">
+            @if (Model.Kitchen.Plan == RecipeManager.Web.Features.Plans.Premium)
+            {
+                <button type="submit" name="plan" value="Free" class="btn btn-outline-secondary">Switch to Free</button>
+            }
+            else
+            {
+                <button type="submit" name="plan" value="Premium" class="btn btn-success">Switch to Premium</button>
+            }
+        </form>
     }
 
     <h3 class="h6">Members</h3>

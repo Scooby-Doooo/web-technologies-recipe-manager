@@ -1,0 +1,11 @@
+@{
+    ViewData["Title"] = "Export recipes";
+}
+
+<h1>Export recipes</h1>
+<p>Download all @ViewData["RecipeCount"] recipes of your kitchen, for a backup or to use them in other tools.</p>
+<div class="d-flex flex-wrap gap-2">
+    <a asp-action="Json" class="btn btn-primary">Download JSON</a>
+    <a asp-action="Csv" class="btn btn-outline-primary">Download CSV</a>
+</div>
+<p class="text-muted mt-3">JSON contains every field with ingredients; CSV has one row per recipe and opens in Excel.</p>
