@@ -80,6 +80,8 @@ export const test = base.extend({
                 Authentication__EnableTestSignIn: 'true',
                 // Development loads the developer's user secrets; the suite never uses a real Google client.
                 Authentication__Google__ClientId: '',
+                // A small Free plan limit keeps the B6 limit test fast; the public kitchen is Premium.
+                Plans__FreeRecipeLimit: '3',
                 Logging__LogLevel__Default: 'Warning' };
             delete env.ASPNETCORE_HTTPS_PORT;
             delete env.ASPNETCORE_HTTPS_PORTS;
