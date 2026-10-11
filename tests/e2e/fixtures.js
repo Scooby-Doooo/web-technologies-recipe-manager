@@ -49,6 +49,34 @@ async function stop(child) {
     await closed;
 }
 
+// Starts one more isolated server next to the shared one, for checks that need other settings
+// (Production, a short token lifetime). It creates its own database through the startup migration.
+export async function startExtraServer(directory, name, environment, settings = {}) {
+    const dll = path.join(project, 'bin/Debug/net10.0/RecipeManager.Web.dll');
+    const baseURL = `http://127.0.0.1:${await freePort()}`;
+    const env = { ...process.env, ASPNETCORE_ENVIRONMENT: environment,
+        ConnectionStrings__DefaultConnection: `Data Source=${path.join(directory, name + '.db')}`,
+        Database__MigrateOnStartup: 'true',
+        DataProtection__KeysPath: path.join(directory, name + '-keys'),
+        Analytics__MeasurementId: '',
+        Authentication__Google__ClientId: '',
+        Logging__LogLevel__Default: 'Warning', ...settings };
+    delete env.ASPNETCORE_HTTPS_PORT;
+    delete env.ASPNETCORE_HTTPS_PORTS;
+    const log = openSync(path.join(directory, name + '.log'), 'w');
+    const child = spawn('dotnet', [dll, '--urls', baseURL, '--contentRoot', project], {
+        cwd: project, env, stdio: ['ignore', log, log], windowsHide: true
+    });
+    const close = async () => { await stop(child); closeSync(log); };
+    try {
+        await expect.poll(async () => {
+            if (child.exitCode !== null) throw new Error(`Extra ${name} server exited. See ${name}.log.`);
+            try { return (await fetch(baseURL + '/Categories')).status; } catch { return 0; }
+        }, { timeout: 20_000, message: `Extra ${name} server starts` }).toBe(200);
+    } catch (error) { await close(); throw error; }
+    return { baseURL, close };
+}
+
 // Uses the Development-only test sign-in, so the suite never needs a Google account.
 export async function signIn(request, email = 'qa@example.test') {
     const response = await request.post('/Account/TestSignIn', { params: { email } });

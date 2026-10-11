@@ -30,7 +30,8 @@ const expectedCases = [
     'SEO-01', 'SEO-02', 'C9-01', 'C9-02',
     'AUTH-01', 'AUTH-02', 'AUTH-03',
     'B5-01', 'B5-02', 'B5-03', 'B5-04',
-    'B6-01', 'B6-02', 'B6-03'
+    'B6-01', 'B6-02', 'B6-03',
+    ...Array.from({ length: 7 }, (_, i) => 'QA3-0' + (i + 1))
 ];
 const expectedRoutes = [];
 for (const controller of ['Recipes', 'Categories', 'Ingredients']) {
