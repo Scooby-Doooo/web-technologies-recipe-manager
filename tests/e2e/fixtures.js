@@ -60,6 +60,8 @@ export async function startExtraServer(directory, name, environment, settings = 
         DataProtection__KeysPath: path.join(directory, name + '-keys'),
         Analytics__MeasurementId: '',
         Authentication__Google__ClientId: '',
+        Telegram__BotToken: '',
+        OpenRouter__ApiKey: '',
         Logging__LogLevel__Default: 'Warning', ...settings };
     delete env.ASPNETCORE_HTTPS_PORT;
     delete env.ASPNETCORE_HTTPS_PORTS;
@@ -106,8 +108,11 @@ export const test = base.extend({
                 ConnectionStrings__DefaultConnection: `Data Source=${database}`,
                 Analytics__MeasurementId: 'G-QA2TEST000',
                 Authentication__EnableTestSignIn: 'true',
-                // Development loads the developer's user secrets; the suite never uses a real Google client.
+                // Development loads the developer's user secrets; the suite never uses a real Google
+                // client, a real Telegram bot or a real OpenRouter key.
                 Authentication__Google__ClientId: '',
+                Telegram__BotToken: '',
+                OpenRouter__ApiKey: '',
                 // A small Free plan limit keeps the B6 limit test fast; the public kitchen is Premium.
                 Plans__FreeRecipeLimit: '3',
                 Logging__LogLevel__Default: 'Warning' };
