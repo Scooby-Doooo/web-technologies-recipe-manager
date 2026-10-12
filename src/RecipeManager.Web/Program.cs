@@ -1,4 +1,8 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -10,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.FeatureManagement;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
+using RecipeManager.Web.Telegram;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,10 +92,22 @@ if (!string.IsNullOrEmpty(google["ClientId"]))
     });
 }
 
+// Telegram bot (B2). Without Telegram:BotToken nothing below starts and notifications are skipped.
+builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
+var telegram = builder.Configuration.GetSection("Telegram").Get<TelegramOptions>() ?? new TelegramOptions();
+builder.Services.AddSingleton(Channel.CreateBounded<RecipeCreated>(new BoundedChannelOptions(1000) { FullMode = BoundedChannelFullMode.DropOldest }));
+builder.Services.AddScoped<RecipeCreatedNotifier>();
+builder.Services.AddSingleton<TelegramClient>();
+builder.Services.AddScoped<TelegramBot>();
+builder.Services.AddSingleton<TelegramService>();
+if (telegram.Enabled)
+    builder.Services.AddHostedService(services => services.GetRequiredService<TelegramService>());
+
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((services, options) => options
     .UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
-    .AddInterceptors(services.GetRequiredService<OutputCacheInvalidationInterceptor>()));
+    .AddInterceptors(services.GetRequiredService<OutputCacheInvalidationInterceptor>(),
+        services.GetRequiredService<RecipeCreatedNotifier>()));
 
 // GET responses of the JSON API are kept in memory; saves evict them by tag.
 var apiCacheDuration = TimeSpan.FromSeconds(builder.Configuration.GetValue("ApiCache:DurationSeconds", 60));
@@ -144,6 +161,22 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllers();
+
+// Telegram calls this when Telegram:WebhookUrl is set (a public https address is needed).
+// The secret header proves the call comes from Telegram, since the URL itself is public.
+if (telegram.Enabled && !string.IsNullOrWhiteSpace(telegram.WebhookUrl))
+{
+    app.MapPost("/telegram/webhook", async (HttpContext http, TelegramService bot) =>
+    {
+        var secret = http.Request.Headers["X-Telegram-Bot-Api-Secret-Token"].ToString();
+        if (string.IsNullOrEmpty(telegram.WebhookSecret)
+            || !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(telegram.WebhookSecret)))
+            return Results.Unauthorized();
+        var update = await JsonSerializer.DeserializeAsync<JsonElement>(http.Request.Body, cancellationToken: http.RequestAborted);
+        await bot.HandleUpdateAsync(update, http.RequestAborted);
+        return Results.Ok();
+    });
+}
 
 // Lets automated tests sign in without Google. It exists only in Development and only when
 // Authentication:EnableTestSignIn is set, which the E2E and Postman test runs do.

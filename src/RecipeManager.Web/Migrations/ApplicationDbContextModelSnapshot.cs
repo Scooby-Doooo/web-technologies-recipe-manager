@@ -236,6 +236,55 @@ namespace RecipeManager.Web.Migrations
                     b.ToTable("RecipeIngredients");
                 });
 
+            modelBuilder.Entity("RecipeManager.Web.Models.TelegramChat", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ChatId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("TelegramChats");
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.TelegramLinkCode", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("TelegramLinkCodes");
+                });
+
             modelBuilder.Entity("RecipeManager.Web.Models.Tenant", b =>
                 {
                     b.Property<int>("Id")
@@ -338,6 +387,24 @@ namespace RecipeManager.Web.Migrations
                     b.Navigation("Ingredient");
 
                     b.Navigation("Recipe");
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.TelegramChat", b =>
+                {
+                    b.HasOne("RecipeManager.Web.Models.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.TelegramLinkCode", b =>
+                {
+                    b.HasOne("RecipeManager.Web.Models.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("RecipeManager.Web.Models.Category", b =>

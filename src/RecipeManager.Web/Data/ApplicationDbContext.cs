@@ -22,6 +22,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; }
     public DbSet<AppUser> Users { get; set; }
     public DbSet<Tenant> Tenants { get; set; }
+    public DbSet<TelegramChat> TelegramChats { get; set; }
+    public DbSet<TelegramLinkCode> TelegramLinkCodes { get; set; }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -77,6 +79,11 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Category>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
         modelBuilder.Entity<Ingredient>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
         modelBuilder.Entity<RecipeIngredient>().HasQueryFilter(item => item.Recipe.TenantId == CurrentTenantId);
+        modelBuilder.Entity<TelegramChat>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
+
+        modelBuilder.Entity<TelegramChat>().HasIndex(item => item.ChatId).IsUnique();
+        modelBuilder.Entity<TelegramChat>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<TelegramLinkCode>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Tenant>().HasData(new Tenant
         {

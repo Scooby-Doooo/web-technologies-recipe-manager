@@ -86,6 +86,36 @@
     </form>
 </section>
 
+<section aria-labelledby="telegram-title" class="mt-4">
+    <h2 id="telegram-title" class="h4">Telegram</h2>
+    @if (Model.TelegramBotUsername == null)
+    {
+        <p class="text-muted">The Telegram bot is not running on this server.</p>
+    }
+    else
+    {
+        <p>Link a Telegram chat to read this kitchen's recipes in <a href="https://t.me/@Model.TelegramBotUsername">@@@Model.TelegramBotUsername</a>
+            and to get a message for every new recipe. The button opens Telegram; press <b>Start</b> there.</p>
+        @if (Model.TelegramChats.Count > 0)
+        {
+            <ul id="telegram-chats">
+                @foreach (var chat in Model.TelegramChats)
+                {
+                    <li class="mb-1">
+                        @chat.Title
+                        <form asp-action="UnlinkTelegram" asp-route-id="@chat.Id" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Unlink</button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        }
+        <form asp-action="ConnectTelegram" method="post">
+            <button type="submit" class="btn btn-outline-primary">Connect Telegram</button>
+        </form>
+    }
+</section>
+
 <section aria-labelledby="token-title" class="mt-4">
     <h2 id="token-title" class="h4">API token</h2>
     <p>Scripts and the MCP server call the JSON API without a browser. Send this token in the

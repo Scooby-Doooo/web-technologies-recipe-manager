@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
 using RecipeManager.Web.Models;
+using RecipeManager.Web.Telegram;
 
 namespace RecipeManager.Web.Controllers;
 
@@ -17,13 +18,15 @@ public class AccountController : Controller
     private readonly ApplicationDbContext _context;
     private readonly IAuthenticationSchemeProvider _schemes;
     private readonly IOptionsMonitor<BearerTokenOptions> _bearerOptions;
+    private readonly TelegramClient _telegram;
 
     public AccountController(ApplicationDbContext context, IAuthenticationSchemeProvider schemes,
-        IOptionsMonitor<BearerTokenOptions> bearerOptions)
+        IOptionsMonitor<BearerTokenOptions> bearerOptions, TelegramClient telegram)
     {
         _context = context;
         _schemes = schemes;
         _bearerOptions = bearerOptions;
+        _telegram = telegram;
     }
 
     public async Task<IActionResult> Login(string? returnUrl)
@@ -101,6 +104,44 @@ public class AccountController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // Sends the user to the bot with a one-time code; the bot links the chat when it receives /start <code>.
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConnectTelegram()
+    {
+        var user = await CurrentUser();
+        if (user?.TenantId == null) return await SignOutMissingUser();
+        if (_telegram.BotUsername == null)
+        {
+            TempData["AccountError"] = "The Telegram bot is not running on this server.";
+            return RedirectToAction(nameof(Index));
+        }
+        var code = new TelegramLinkCode
+        {
+            Code = UserRegistration.NewInviteCode(),
+            TenantId = user.TenantId.Value,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10)
+        };
+        _context.TelegramLinkCodes.Add(code);
+        await _context.SaveChangesAsync();
+        return Redirect($"https://t.me/{_telegram.BotUsername}?start={code.Code}");
+    }
+
+    [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnlinkTelegram(int id)
+    {
+        // The kitchen filter keeps users from unlinking chats of other kitchens.
+        var chat = await _context.TelegramChats.FirstOrDefaultAsync(item => item.Id == id);
+        if (chat == null) return NotFound();
+        _context.TelegramChats.Remove(chat);
+        await _context.SaveChangesAsync();
+        TempData["AccountMessage"] = $"Telegram chat {chat.Title} is no longer linked.";
+        return RedirectToAction(nameof(Index));
+    }
+
     // Moves the user into another kitchen. Their previous kitchen and its recipes stay as they are.
     [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
     [HttpPost]
@@ -159,7 +200,12 @@ public class AccountController : Controller
             .Where(member => member.TenantId == user.TenantId)
             .OrderBy(member => member.RegisteredAt)
             .ToListAsync();
-        return new AccountViewModel { User = user, Kitchen = user.Tenant, Members = members };
+        var chats = await _context.TelegramChats.AsNoTracking().OrderBy(chat => chat.LinkedAt).ToListAsync();
+        return new AccountViewModel
+        {
+            User = user, Kitchen = user.Tenant, Members = members,
+            TelegramChats = chats, TelegramBotUsername = _telegram.BotUsername
+        };
     }
 
     // The kitchen lives in the cookie's claims, so the cookie is reissued after it changes.
