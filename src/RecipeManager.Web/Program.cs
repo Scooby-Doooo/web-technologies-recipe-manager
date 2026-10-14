@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FeatureManagement;
+using RecipeManager.Web.Assistant;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
 using RecipeManager.Web.Telegram;
@@ -91,6 +92,12 @@ if (!string.IsNullOrEmpty(google["ClientId"]))
                 StringComparer.OrdinalIgnoreCase));
     });
 }
+
+// AI assistant (C21). The OpenRouter key comes from user secrets or environment variables.
+builder.Services.Configure<OpenRouterOptions>(builder.Configuration.GetSection("OpenRouter"));
+builder.Services.AddHttpClient<OpenRouterClient>();
+builder.Services.AddScoped<AssistantTools>();
+builder.Services.AddScoped<AssistantAgent>();
 
 // Telegram bot (B2). Without Telegram:BotToken nothing below starts and notifications are skipped.
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));

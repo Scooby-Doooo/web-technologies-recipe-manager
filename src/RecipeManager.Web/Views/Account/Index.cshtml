@@ -51,7 +51,8 @@
     }
 
     <h3 class="h6">Plan: <span id="kitchen-plan">@Model.Kitchen.Plan</span></h3>
-    <p>Premium adds the <a asp-controller="Export" asp-action="Index">recipe export</a> page and removes
+    <p>Premium adds the <a asp-controller="Assistant" asp-action="Index">AI assistant</a> and the
+        <a asp-controller="Export" asp-action="Index">recipe export</a> page, and removes
         the limit of @RecipeLimit.Limit recipes per kitchen of the Free plan. There is no payment in this demo.</p>
     @if (Model.Kitchen.Id != Tenant.PublicId)
     {

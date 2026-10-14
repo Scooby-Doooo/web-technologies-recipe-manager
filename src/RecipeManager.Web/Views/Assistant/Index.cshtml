@@ -1,0 +1,41 @@
+@{
+    ViewData["Title"] = "AI assistant";
+    var configured = ViewData["AssistantConfigured"] as bool? == true;
+}
+
+<h1>AI assistant</h1>
+<p>Ask about the recipes of your kitchen, what to cook in 20 minutes, or ask it to save a new recipe.
+    You see the model's reasoning and every tool it uses on your kitchen data.</p>
+
+@if (!configured)
+{
+    <div class="alert alert-warning" role="alert">
+        The assistant is not configured on this server. Set <code>OpenRouter:ApiKey</code>, for example with <code>dotnet user-secrets</code>.
+    </div>
+}
+else
+{
+    <div id="assistant-chat" class="assistant-chat" role="log" aria-live="polite" aria-label="Conversation"></div>
+    <p id="assistant-error" class="alert alert-danger mt-3" role="alert" hidden></p>
+    <form id="assistant-form" class="mt-3" asp-action="Chat" method="post">
+        <label for="assistant-input" class="form-label">Your message</label>
+        <textarea id="assistant-input" class="form-control" rows="3" maxlength="4000" required
+                  placeholder="What can I cook in 30 minutes?"></textarea>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            <button type="submit" id="assistant-send" class="btn btn-primary">Send</button>
+            <button type="button" id="assistant-stop" class="btn btn-outline-secondary" hidden>Stop</button>
+            <button type="button" id="assistant-reset" class="btn btn-link">New chat</button>
+        </div>
+    </form>
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/assistant.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    @if (configured)
+    {
+        <script src="~/js/assistant.js" asp-append-version="true"></script>
+    }
+}

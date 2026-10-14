@@ -17,4 +17,7 @@ public static class FeatureFlags
 
     // Without it a kitchen can hold at most Plans:FreeRecipeLimit recipes.
     public const string UnlimitedRecipes = "UnlimitedRecipes";
+
+    // The AI assistant chat; every message costs money at OpenRouter.
+    public const string AiAssistant = "AiAssistant";
 }
