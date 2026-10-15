@@ -14,6 +14,7 @@ const protectedPages = ['Recipes', 'Categories', 'Ingredients'].flatMap(controll
     ['GET', `/${controller}/Edit/1`], ['POST', `/${controller}/Edit/1`],
     ['GET', `/${controller}/Delete/1`], ['POST', `/${controller}/Delete/1`]
 ]).concat([['GET', '/Recipes/CategoryOptions?term=Bre'], ['GET', '/Account'], ['GET', '/Export'],
+    ['GET', '/Assistant'], ['POST', '/Assistant/Chat'],
     ['POST', '/Account/ApiToken'], ['POST', '/Account/ChangePlan'], ['POST', '/Account/JoinKitchen'], ['POST', '/Account/RenameKitchen']]);
 const protectedApi = ['recipes', 'categories', 'ingredients'].flatMap(resource => [
     ['POST', `/api/${resource}`], ['PUT', `/api/${resource}/1`], ['POST', `/api/${resource}/1`], ['DELETE', `/api/${resource}/1`]
