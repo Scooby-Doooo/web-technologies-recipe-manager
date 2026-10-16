@@ -131,6 +131,8 @@ test('[C1-06] image upload, retained edit, replacement and deletion', async ({ p
 });
 
 test('[C1-07] unsupported, empty and oversized image uploads are rejected', async ({ page }) => {
+    // The C15 script would stop these files in the browser; this test checks the server rules on their own.
+    await page.route('**/js/image-upload.js*', route => route.abort());
     await page.goto('/Recipes/Create');
     await fillRecipe(page, 'QA2 rejected image');
     await chooseCategory(page, 'Bre', 'Breakfast');
