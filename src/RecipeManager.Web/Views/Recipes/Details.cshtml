@@ -90,6 +90,51 @@
         </section>
     </div>
 
+    <section id="recipe-card" class="recipe-card-section" aria-labelledby="recipe-card-title">
+        <h2 id="recipe-card-title">Recipe card</h2>
+        <div class="row g-4 align-items-start">
+            <div class="col-lg-7">
+                <canvas id="recipe-card-canvas" class="recipe-card-canvas" width="1080" height="1080"
+                        role="img" aria-label="Recipe card for @Model.Title">
+                    Your browser cannot draw the recipe card.
+                </canvas>
+            </div>
+            <form id="recipe-card-options" class="col-lg-5">
+                <p class="recipe-muted">A picture of this recipe for messengers and social networks. It is drawn in your browser.</p>
+                <div class="mb-3">
+                    <label for="recipe-card-format" class="form-label">Format</label>
+                    <select id="recipe-card-format" class="form-select">
+                        <option value="square">Post, 1080 × 1080</option>
+                        <option value="story">Story, 1080 × 1920</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="recipe-card-theme" class="form-label">Colours</label>
+                    <select id="recipe-card-theme" class="form-select">
+                        <option value="green">Green</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </div>
+                <div class="form-check mb-3">
+                    <input id="recipe-card-ingredients" class="form-check-input" type="checkbox" checked />
+                    <label for="recipe-card-ingredients" class="form-check-label">Show ingredients</label>
+                </div>
+                <button id="recipe-card-download" type="button" class="btn btn-primary" disabled>Download PNG</button>
+            </form>
+        </div>
+    </section>
+    <script type="application/json" id="recipe-card-data">@Json.Serialize(new
+    {
+        id = Model.Id,
+        title = Model.Title,
+        category = Model.Category.Name,
+        minutes = Model.CookingTimeMinutes,
+        servings = Model.Servings,
+        imagePath = Model.ImagePath,
+        ingredients = Model.RecipeIngredients.Select(item => new { name = item.Ingredient.Name, amount = $"{item.Quantity} {item.Unit}" })
+    })</script>
+
     <div class="recipe-bottom-actions d-flex flex-wrap gap-2">
         <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Edit recipe</a>
         <a asp-action="Index" class="btn btn-outline-secondary">Back to recipes</a>
@@ -102,3 +147,7 @@
         <a href="mailto:vivtonichenko_dmytro@knu.ua">vivtonichenko_dmytro@knu.ua</a>
     </div>
 </aside>
+
+@section Scripts {
+    <script src="~/js/recipe-card.js" asp-append-version="true"></script>
+}
