@@ -120,7 +120,7 @@ test('[C1-06] image upload, retained edit, replacement and deletion', async ({ p
     await page.getByLabel('Recipe image (optional)').setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: png });
     await save(page);
     await page.goto('/Recipes/Details/' + id);
-    const replacement = await page.getByRole('img').getAttribute('src');
+    const replacement = await image.getAttribute('src');
     expect(replacement).not.toBe(first);
     expect((await request.get(first)).status()).toBe(404);
     expect((await request.get(replacement)).status()).toBe(200);
