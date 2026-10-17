@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import { startFakeMealDb } from './fake-mealdb.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const project = path.join(root, 'src/RecipeManager.Web');
@@ -62,6 +63,8 @@ export async function startExtraServer(directory, name, environment, settings = 
         Authentication__Google__ClientId: '',
         Telegram__BotToken: '',
         OpenRouter__ApiKey: '',
+        // Nothing listens on port 9, so an extra server never reaches the real TheMealDB.
+        TheMealDb__ApiBaseUrl: 'http://127.0.0.1:9/',
         Logging__LogLevel__Default: 'Warning', ...settings };
     delete env.ASPNETCORE_HTTPS_PORT;
     delete env.ASPNETCORE_HTTPS_PORTS;
@@ -101,6 +104,7 @@ export const test = base.extend({
         let child;
         let log;
         let baseURL;
+        const mealDb = await startFakeMealDb();
         try {
             command(['ef', 'database', 'update', '--no-build', '--project', project, '--connection', `Data Source=${database}`]);
             baseURL = `http://127.0.0.1:${await freePort()}`;
@@ -113,6 +117,7 @@ export const test = base.extend({
                 Authentication__Google__ClientId: '',
                 Telegram__BotToken: '',
                 OpenRouter__ApiKey: '',
+                TheMealDb__ApiBaseUrl: mealDb.url,
                 // A small Free plan limit keeps the B6 limit test fast; the public kitchen is Premium.
                 Plans__FreeRecipeLimit: '3',
                 Logging__LogLevel__Default: 'Warning' };
@@ -129,9 +134,10 @@ export const test = base.extend({
                 if (child.exitCode !== null) throw new Error('Owned test server exited. See temporary application.log.');
                 try { return (await fetch(baseURL + '/Categories')).status; } catch { return 0; }
             }, { timeout: 20_000, message: 'Fresh isolated MVC server starts' }).toBe(200);
-            await use({ baseURL, directory, database });
+            await use({ baseURL, directory, database, mealDb });
         } finally {
             await stop(child);
+            await mealDb.close();
             if (log !== undefined) closeSync(log);
             const preserved = JSON.stringify(protectedFiles()) === JSON.stringify(before);
             writeFileSync(path.join(directory, 'isolation.json'), JSON.stringify({
