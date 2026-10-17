@@ -24,6 +24,10 @@
     <!script type="application/ld+json">@Json.Serialize(RecipeStructuredData.Create(Model, siteUrl + Context.Request.Path, imageUrl))</!script>
 }
 
+@if (TempData["RecipeMessage"] is string message)
+{
+    <div class="alert alert-info" role="status">@message</div>
+}
 <article class="recipe-landing" aria-labelledby="recipe-title">
     <a asp-action="Index" class="recipe-back-link">Back to recipes</a>
 

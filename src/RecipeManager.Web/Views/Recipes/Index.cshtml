@@ -14,7 +14,10 @@
 }
 
 <h1>Recipes</h1>
-<p><a asp-action="Create" class="btn btn-primary">Create recipe</a></p>
+<p class="d-flex flex-wrap gap-2">
+    <a asp-action="Create" class="btn btn-primary">Create recipe</a>
+    <a asp-controller="Import" asp-action="Index" class="btn btn-outline-secondary">Import from TheMealDB</a>
+</p>
 @if (!Model.Any())
 {
     <p>No recipes yet. Create your first recipe to get started.</p>

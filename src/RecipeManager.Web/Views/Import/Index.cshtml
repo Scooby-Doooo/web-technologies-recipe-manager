@@ -1,0 +1,92 @@
+@{
+    ViewData["Title"] = "Import from TheMealDB";
+    var categories = ViewData["Categories"] as IReadOnlyList<string> ?? [];
+    var ingredients = ViewData["Ingredients"] as IReadOnlyList<string> ?? [];
+}
+
+<h1>Import from TheMealDB</h1>
+<p>Find a meal on <a href="https://www.themealdb.com" rel="noopener">TheMealDB</a> by name, category or main ingredient
+    and add it to your kitchen together with its photo and ingredients.</p>
+
+@if (ViewData["Error"] is string error)
+{
+    <div class="alert alert-warning" role="alert">@error</div>
+}
+@if (TempData["ImportError"] is string importError)
+{
+    <div class="alert alert-danger" role="alert">@importError</div>
+}
+
+<form id="import-search" class="row g-3 align-items-end" asp-action="Search" method="get" role="search"
+      data-meal-url="@Url.Action("Meal")" data-recipe-url="@Url.Action("Details", "Recipes")">
+    <div class="col-md-4">
+        <label for="import-term" class="form-label">Meal name</label>
+        <input id="import-term" name="term" type="search" class="form-control" maxlength="100" autocomplete="off"
+               placeholder="For example, curry" />
+    </div>
+    <div class="col-md-4">
+        <label for="import-category" class="form-label">Category</label>
+        <select id="import-category" name="category" class="form-select">
+            <option value="">Any category</option>
+            @foreach (var category in categories)
+            {
+                <option>@category</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label for="import-ingredient" class="form-label">Main ingredient</label>
+        <input id="import-ingredient" name="ingredient" class="form-control" list="import-ingredient-list" maxlength="100"
+               autocomplete="off" placeholder="For example, chicken" />
+        <datalist id="import-ingredient-list">
+            @foreach (var ingredient in ingredients)
+            {
+                <option value="@ingredient"></option>
+            }
+        </datalist>
+    </div>
+</form>
+<noscript><p class="alert alert-warning mt-3">The search needs JavaScript.</p></noscript>
+
+<p id="import-status" class="recipe-muted mt-3" role="status" aria-live="polite">Type at least 2 letters of a name, or choose a category or an ingredient.</p>
+<div id="import-results" class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3"></div>
+
+<div id="import-preview" class="modal fade" tabindex="-1" aria-labelledby="import-preview-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="import-preview-title" class="modal-title h5">Meal</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="import-preview-error" class="alert alert-danger" role="alert" hidden></p>
+                <div id="import-preview-body" hidden>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <img id="import-preview-image" class="img-fluid rounded w-100" alt="" />
+                        </div>
+                        <div class="col-md-7">
+                            <p id="import-preview-meta" class="recipe-category"></p>
+                            <h3 class="h6">Ingredients</h3>
+                            <ul id="import-preview-ingredients" class="list-unstyled"></ul>
+                            <a id="import-preview-video" class="d-inline-block mb-2" rel="noopener" target="_blank" hidden>Video on YouTube</a>
+                        </div>
+                    </div>
+                    <h3 class="h6 mt-3">Instructions</h3>
+                    <div id="import-preview-instructions" class="recipe-text"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="import-preview-open" class="btn btn-outline-secondary" hidden>Open recipe in your kitchen</a>
+                <form id="import-preview-form" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-primary" disabled>Import to my kitchen</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/meal-import.js" asp-append-version="true"></script>
+}

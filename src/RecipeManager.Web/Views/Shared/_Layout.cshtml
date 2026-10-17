@@ -92,6 +92,9 @@
                     <ul class="navbar-nav">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Import" asp-action="Index">Import</a>
+                            </li>
                             <feature name="@RecipeManager.Web.Features.FeatureFlags.AiAssistant">
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" asp-controller="Assistant" asp-action="Index">Assistant</a>
