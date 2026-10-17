@@ -82,6 +82,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TelegramChat>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
 
         modelBuilder.Entity<TelegramChat>().HasIndex(item => item.ChatId).IsUnique();
+        // SQLite allows many NULLs in a unique index, so recipes typed by hand are not affected.
+        modelBuilder.Entity<Recipe>().HasIndex(item => new { item.TenantId, item.MealDbId }).IsUnique();
         modelBuilder.Entity<TelegramChat>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TelegramLinkCode>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Cascade);
 

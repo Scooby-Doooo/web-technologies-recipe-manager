@@ -193,6 +193,9 @@ namespace RecipeManager.Web.Migrations
                         .HasMaxLength(10000)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("MealDbId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Servings")
                         .HasColumnType("INTEGER");
 
@@ -208,7 +211,8 @@ namespace RecipeManager.Web.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.HasIndex("TenantId");
+                    b.HasIndex("TenantId", "MealDbId")
+                        .IsUnique();
 
                     b.ToTable("Recipes");
                 });

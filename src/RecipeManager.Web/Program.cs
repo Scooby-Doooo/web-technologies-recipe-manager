@@ -15,6 +15,7 @@ using Microsoft.FeatureManagement;
 using RecipeManager.Web.Assistant;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
+using RecipeManager.Web.MealDb;
 using RecipeManager.Web.Telegram;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -109,6 +110,12 @@ builder.Services.AddScoped<TelegramBot>();
 builder.Services.AddSingleton<TelegramService>();
 if (telegram.Enabled)
     builder.Services.AddHostedService(services => services.GetRequiredService<TelegramService>());
+
+// Recipe import from TheMealDB (C8). Its free test key needs no secret.
+builder.Services.AddMemoryCache();
+builder.Services.Configure<TheMealDbOptions>(builder.Configuration.GetSection("TheMealDb"));
+builder.Services.AddHttpClient<TheMealDbClient>();
+builder.Services.AddScoped<MealImporter>();
 
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((services, options) => options
