@@ -15,6 +15,7 @@ using Microsoft.FeatureManagement;
 using RecipeManager.Web.Assistant;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
+using RecipeManager.Web.Live;
 using RecipeManager.Web.MealDb;
 using RecipeManager.Web.Telegram;
 
@@ -117,11 +118,15 @@ builder.Services.Configure<TheMealDbOptions>(builder.Configuration.GetSection("T
 builder.Services.AddHttpClient<TheMealDbClient>();
 builder.Services.AddScoped<MealImporter>();
 
+// Live feed of recipe changes (C10).
+builder.Services.AddSingleton<KitchenFeed>();
+builder.Services.AddScoped<KitchenFeedInterceptor>();
+
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((services, options) => options
     .UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
     .AddInterceptors(services.GetRequiredService<OutputCacheInvalidationInterceptor>(),
-        services.GetRequiredService<RecipeCreatedNotifier>()));
+        services.GetRequiredService<RecipeCreatedNotifier>(), services.GetRequiredService<KitchenFeedInterceptor>()));
 
 // GET responses of the JSON API are kept in memory; saves evict them by tag.
 var apiCacheDuration = TimeSpan.FromSeconds(builder.Configuration.GetValue("ApiCache:DurationSeconds", 60));
@@ -166,6 +171,8 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/api"), api =>
 app.UseHttpsRedirection();
 // Uploaded images are created at runtime and are not in the build-time static asset manifest.
 app.UseStaticFiles();
+// The live feed's WebSocket; pings keep idle connections open through proxies.
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseRouting();
 // Authentication runs first, so the output cache can keep each kitchen's API responses apart.
 app.UseAuthentication();
