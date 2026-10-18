@@ -50,11 +50,7 @@ public class LiveController : Controller
             Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
         }
-        // Browsers send the sign-in cookie with a WebSocket handshake from any site, and the same-origin
-        // policy does not apply to WebSockets, so another site could read the feed (cross-site WebSocket hijacking).
-        var origin = Request.Headers.Origin.ToString();
-        if (origin.Length > 0 && (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri)
-                                  || !string.Equals(originUri.Authority, Request.Host.Value, StringComparison.OrdinalIgnoreCase)))
+        if (!OriginCheck.IsSameOrigin(Request))
         {
             Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
