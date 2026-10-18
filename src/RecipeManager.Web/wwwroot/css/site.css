@@ -206,6 +206,26 @@ body {
   }
 }
 
+.live-metrics dt {
+  color: #566a65;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.live-metrics dd {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.live-feed li {
+  padding: 0.375rem 0;
+  border-bottom: 1px solid #d6e2dc;
+}
+
+.live-type {
+  font-weight: 600;
+}
+
 .recipe-statistics {
   padding: 1rem 0 2rem;
 }

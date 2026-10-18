@@ -1,0 +1,50 @@
+@{
+    ViewData["Title"] = "Live kitchen";
+}
+
+<h1>Live kitchen</h1>
+<p>Recipe changes in your kitchen appear here as they happen, from any page, the API, the MCP server or the AI assistant.
+    Choose how the page gets them and compare what each way costs.</p>
+
+<div id="live" data-events-url="@Url.Action("Events")" data-wait-url="@Url.Action("Wait")" data-socket-url="@Url.Action("Socket")"
+     data-details-url="@Url.Action("Details", "Recipes")">
+    <fieldset class="mb-3">
+        <legend class="form-label fs-6">Delivery</legend>
+        <div class="d-flex flex-wrap gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="transport" id="transport-polling" value="polling" />
+                <label class="form-check-label" for="transport-polling">Polling every second</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="transport" id="transport-adaptive" value="adaptive" />
+                <label class="form-check-label" for="transport-adaptive">Adaptive polling (1–16 s)</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="transport" id="transport-long" value="long" />
+                <label class="form-check-label" for="transport-long">Long polling</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="transport" id="transport-socket" value="socket" checked />
+                <label class="form-check-label" for="transport-socket">WebSocket</label>
+            </div>
+        </div>
+    </fieldset>
+
+    <dl class="row live-metrics" aria-label="Delivery statistics">
+        <div class="col-6 col-md-2"><dt>Requests</dt><dd id="live-requests">0</dd></div>
+        <div class="col-6 col-md-2"><dt>Empty answers</dt><dd id="live-empty">0</dd></div>
+        <div class="col-6 col-md-2"><dt>Events</dt><dd id="live-events">0</dd></div>
+        <div class="col-6 col-md-2"><dt>Data received</dt><dd id="live-bytes">0 B</dd></div>
+        <div class="col-6 col-md-2"><dt>Average delay</dt><dd id="live-average">–</dd></div>
+        <div class="col-6 col-md-2"><dt>State</dt><dd id="live-state">Starting</dd></div>
+    </dl>
+    <p class="form-text">For a WebSocket, «Requests» counts messages. Data received is the JSON payload, without HTTP headers.</p>
+
+    <h2 class="h5 mt-4">Recent changes</h2>
+    <ul id="live-feed" class="list-unstyled live-feed" aria-live="polite"></ul>
+    <p id="live-empty-feed" class="recipe-muted">No changes yet. Edit a recipe in another tab to see it here.</p>
+</div>
+
+@section Scripts {
+    <script src="~/js/live.js" asp-append-version="true"></script>
+}
