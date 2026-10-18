@@ -118,6 +118,8 @@ export const test = base.extend({
                 Telegram__BotToken: '',
                 OpenRouter__ApiKey: '',
                 TheMealDb__ApiBaseUrl: mealDb.url,
+                // Short long-poll answers keep the C10 tests fast.
+                Live__LongPollSeconds: '2',
                 // A small Free plan limit keeps the B6 limit test fast; the public kitchen is Premium.
                 Plans__FreeRecipeLimit: '3',
                 Logging__LogLevel__Default: 'Warning' };
