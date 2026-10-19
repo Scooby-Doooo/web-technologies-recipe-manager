@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Data;
@@ -19,8 +20,10 @@ public class TenantContext
 
     private int? _explicitTenantId;
 
-    public int TenantId => _explicitTenantId
-        ?? (int.TryParse(_http.HttpContext?.User.FindFirst(TenantIdClaim)?.Value, out var id) ? id : Tenant.PublicId);
+    public int TenantId => _explicitTenantId ?? FromUser(_http.HttpContext?.User);
+
+    public static int FromUser(ClaimsPrincipal? user) =>
+        int.TryParse(user?.FindFirst(TenantIdClaim)?.Value, out var id) ? id : Tenant.PublicId;
 
     // Background work has no signed-in user, e.g. the Telegram bot answering a linked chat.
     // It sets the kitchen explicitly for its own scope.
