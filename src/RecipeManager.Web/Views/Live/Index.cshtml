@@ -7,7 +7,7 @@
     Choose how the page gets them and compare what each way costs.</p>
 
 <div id="live" data-events-url="@Url.Action("Events")" data-wait-url="@Url.Action("Wait")" data-socket-url="@Url.Action("Socket")"
-     data-details-url="@Url.Action("Details", "Recipes")">
+     data-details-url="@Url.Action("Details", "Recipes")" data-hub-url="@Url.Content("~/hubs/kitchen")">
     <fieldset class="mb-3">
         <legend class="form-label fs-6">Delivery</legend>
         <div class="d-flex flex-wrap gap-3">
@@ -27,6 +27,19 @@
                 <input class="form-check-input" type="radio" name="transport" id="transport-socket" value="socket" checked />
                 <label class="form-check-label" for="transport-socket">WebSocket</label>
             </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="transport" id="transport-signalr" value="signalr" />
+                <label class="form-check-label" for="transport-signalr">SignalR</label>
+            </div>
+            <div>
+                <label for="signalr-transport" class="visually-hidden">SignalR transport</label>
+                <select id="signalr-transport" class="form-select form-select-sm" aria-describedby="signalr-transport-help">
+                    <option value="auto">Auto</option>
+                    <option value="WebSockets">WebSockets</option>
+                    <option value="ServerSentEvents">Server-Sent Events</option>
+                    <option value="LongPolling">Long polling</option>
+                </select>
+            </div>
         </div>
     </fieldset>
 
@@ -38,7 +51,8 @@
         <div class="col-6 col-md-2"><dt>Average delay</dt><dd id="live-average">–</dd></div>
         <div class="col-6 col-md-2"><dt>State</dt><dd id="live-state">Starting</dd></div>
     </dl>
-    <p class="form-text">For a WebSocket, «Requests» counts messages. Data received is the JSON payload, without HTTP headers.</p>
+    <p id="signalr-transport-help" class="form-text">For a WebSocket and SignalR, «Requests» counts messages. Data received is the JSON payload,
+        without HTTP headers. SignalR picks the best transport the browser and server share unless one is chosen here.</p>
 
     <h2 class="h5 mt-4">Recent changes</h2>
     <ul id="live-feed" class="list-unstyled live-feed" aria-live="polite"></ul>
@@ -46,5 +60,6 @@
 </div>
 
 @section Scripts {
+    <script src="~/lib/signalr/signalr.min.js" asp-append-version="true"></script>
     <script src="~/js/live.js" asp-append-version="true"></script>
 }

@@ -1,6 +1,6 @@
-// Live kitchen page (C10): one feed of recipe changes, delivered by polling every second,
-// adaptive polling, long polling or a WebSocket. Every way ends in receive(), so the numbers
-// on the page compare like with like.
+// Live kitchen page (C10, C11): one feed of recipe changes, delivered by polling every second,
+// adaptive polling, long polling, a WebSocket or SignalR. Every way ends in receive(), so the
+// numbers on the page compare like with like.
 (() => {
     const root = document.getElementById('live');
     if (!root) return;
@@ -50,19 +50,24 @@
     }
 
     // One answer of any transport. The delay is measured from the save on the server to now.
+    // SignalR hands over parsed objects, so its size is the JSON of the object.
     function receive(text) {
-        const data = JSON.parse(text);
+        const data = typeof text === 'string' ? JSON.parse(text) : text;
         stats.requests++;
-        stats.bytes += encoder.encode(text).length;
-        if (!data.events.length) stats.empty++;
-        for (const event of data.events) {
+        stats.bytes += encoder.encode(typeof text === 'string' ? text : JSON.stringify(text)).length;
+        // A push can repeat what the catch-up after (re)connecting already returned; a lower
+        // "last" means the server restarted and numbering began again.
+        if (data.last < since) since = 0;
+        const fresh = data.events.filter(event => event.id > since);
+        if (!fresh.length) stats.empty++;
+        for (const event of fresh) {
             stats.events++;
             stats.delay += Math.max(0, Date.now() - event.at);
             add(event);
         }
-        since = data.last;
+        since = Math.max(since, data.last);
         render();
-        return data.events.length > 0;
+        return fresh.length > 0;
     }
 
     async function get(url, signal) {
@@ -136,7 +141,48 @@
         };
     }
 
-    const transports = { polling: () => polling(false), adaptive: () => polling(true), long: longPolling, socket: webSocket };
+    // SignalR reconnects by itself; after each (re)connect the hub returns what was missed.
+    function signalR() {
+        const chosen = document.getElementById('signalr-transport').value;
+        const options = chosen === 'auto' ? {} : { transport: window.signalR.HttpTransportType[chosen] };
+        const connection = new window.signalR.HubConnectionBuilder()
+            .withUrl(urls.hubUrl, options)
+            .withAutomaticReconnect()
+            .build();
+        const catchUp = async () => receive(await connection.invoke('Since', since));
+        connection.on('changes', receive);
+        connection.onreconnecting(() => setState('Connection lost, retrying'));
+        let stopped = false;
+        // withAutomaticReconnect gives up after attempts at 0, 2, 10 and 30 s.
+        connection.onclose(() => {
+            if (!stopped) setState('Disconnected. Reload the page to connect again.');
+        });
+        connection.onreconnected(async () => {
+            setState('Connected');
+            await catchUp();
+        });
+        (async () => {
+            while (!stopped) {
+                try {
+                    await connection.start();
+                    if (stopped) return connection.stop();
+                    setState('Connected');
+                    await catchUp();
+                    return;
+                } catch {
+                    if (stopped) return;
+                    setState('Connection lost, retrying');
+                    await pause(2000);
+                }
+            }
+        })();
+        return () => {
+            stopped = true;
+            connection.stop();
+        };
+    }
+
+    const transports = { polling: () => polling(false), adaptive: () => polling(true), long: longPolling, socket: webSocket, signalr: signalR };
 
     function start(name) {
         stop();
@@ -147,6 +193,11 @@
 
     root.addEventListener('change', event => {
         if (event.target.name === 'transport') start(event.target.value);
+        // Another SignalR transport means a new connection.
+        if (event.target.id === 'signalr-transport') {
+            document.getElementById('transport-signalr').checked = true;
+            start('signalr');
+        }
     });
 
     // The recent history is loaded once and is not counted in the statistics.
