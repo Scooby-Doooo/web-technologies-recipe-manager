@@ -22,19 +22,22 @@ public class KitchenFeed
         public TaskCompletionSource Changed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    public void Publish(int tenantId, string type, int recipeId, string title)
+    public KitchenEvent Publish(int tenantId, string type, int recipeId, string title)
     {
         var kitchen = _kitchens.GetOrAdd(tenantId, _ => new Kitchen());
         TaskCompletionSource changed;
+        KitchenEvent added;
         lock (kitchen)
         {
-            kitchen.Events.Add(new KitchenEvent(++kitchen.LastId, type, recipeId, title, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+            added = new KitchenEvent(++kitchen.LastId, type, recipeId, title, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            kitchen.Events.Add(added);
             if (kitchen.Events.Count > Capacity) kitchen.Events.RemoveAt(0);
             changed = kitchen.Changed;
             kitchen.Changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
         // Wakes every long poll and WebSocket waiting for this kitchen.
         changed.SetResult();
+        return added;
     }
 
     // Events after `since`. A `since` ahead of the feed means the server restarted, so the client starts over.

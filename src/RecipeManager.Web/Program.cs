@@ -120,6 +120,7 @@ builder.Services.AddScoped<MealImporter>();
 
 // Live feed of recipe changes (C10).
 builder.Services.AddSingleton<KitchenFeed>();
+builder.Services.AddSignalR();
 builder.Services.AddScoped<KitchenFeedInterceptor>();
 
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();
@@ -182,6 +183,13 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllers();
+// SignalR version of the live feed (C11). Its WebSocket transport needs the same Origin check as C10.
+app.UseWhen(context => context.Request.Path.StartsWithSegments("/hubs"), hub => hub.Use(async (context, next) =>
+{
+    if (OriginCheck.IsSameOrigin(context.Request)) await next(context);
+    else context.Response.StatusCode = StatusCodes.Status403Forbidden;
+}));
+app.MapHub<KitchenHub>("/hubs/kitchen");
 
 // Telegram calls this when Telegram:WebhookUrl is set (a public https address is needed).
 // The secret header proves the call comes from Telegram, since the URL itself is public.
