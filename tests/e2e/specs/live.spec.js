@@ -1,22 +1,7 @@
-import { request as httpRequest } from 'node:http';
 import { test, expect } from '../fixtures.js';
-import { kitchenUser } from '../helpers.js';
+import { handshake, kitchenUser } from '../helpers.js';
 
 const recipe = (categoryId, title) => ({ title, instructions: 'Stir.', cookingTimeMinutes: 10, servings: 2, categoryId });
-
-// Sends a raw WebSocket handshake and reports the status code the server answers with.
-function handshake(baseURL, cookie, origin) {
-    return new Promise((resolve, reject) => {
-        const request = httpRequest(baseURL + '/Live/Socket', {
-            headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13',
-                'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==', Origin: origin, Cookie: cookie }
-        });
-        request.on('upgrade', (response, socket) => { socket.destroy(); resolve(response.statusCode); });
-        request.on('response', response => { response.resume(); resolve(response.statusCode); });
-        request.on('error', reject);
-        request.end();
-    });
-}
 
 test('[C10-01] the live page shows kitchen changes through each of the four transports', async ({ browser, app }) => {
     const user = await kitchenUser(browser, app, 'live');
@@ -85,8 +70,8 @@ test('[C10-02] feed endpoints answer at once, hold long polls and guard the WebS
         expect(woken.events.map(item => item.title)).toEqual(['QA protocol pie, baked']);
 
         const cookie = (await user.context.cookies()).map(item => `${item.name}=${item.value}`).join('; ');
-        expect(await handshake(app.baseURL, cookie, app.baseURL)).toBe(101);
-        expect(await handshake(app.baseURL, cookie, 'http://evil.example')).toBe(403);
+        expect(await handshake(app.baseURL + '/Live/Socket', cookie, app.baseURL)).toBe(101);
+        expect(await handshake(app.baseURL + '/Live/Socket', cookie, 'http://evil.example')).toBe(403);
         expect((await user.api.get('/Live/Socket')).status()).toBe(400);
     } finally {
         await user.context.close();

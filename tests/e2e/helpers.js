@@ -1,3 +1,4 @@
+import { request as httpRequest } from 'node:http';
 import { expect } from './fixtures.js';
 
 export async function search(page, term) {
@@ -52,4 +53,18 @@ export async function kitchenUser(browser, app, name) {
         delete: path => context.request.delete(path, { headers })
     };
     return { context, email, api, page: await context.newPage() };
+}
+
+// Sends a raw WebSocket handshake and reports the status code the server answers with.
+export function handshake(url, cookie, origin) {
+    return new Promise((resolve, reject) => {
+        const request = httpRequest(url, {
+            headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13',
+                'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==', Origin: origin, Cookie: cookie }
+        });
+        request.on('upgrade', (response, socket) => { socket.destroy(); resolve(response.statusCode); });
+        request.on('response', response => { response.resume(); resolve(response.statusCode); });
+        request.on('error', reject);
+        request.end();
+    });
 }
