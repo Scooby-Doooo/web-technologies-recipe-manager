@@ -125,6 +125,15 @@ public class RecipesController : Controller
         return View(recipe);
     }
 
+    // Block editor for free-form notes on a recipe (C12).
+    public async Task<IActionResult> Notes(int? id)
+    {
+        if (id == null) return NotFound();
+        var recipe = await _context.Recipes.AsNoTracking().FirstOrDefaultAsync(recipe => recipe.Id == id);
+        if (recipe == null) return NotFound();
+        return View(recipe);
+    }
+
     public async Task<IActionResult> Edit(int? id)
     {
         if (id == null) return NotFound();

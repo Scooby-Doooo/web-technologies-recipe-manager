@@ -1,0 +1,36 @@
+@model Recipe
+@{
+    ViewData["Title"] = "Notes for " + Model.Title;
+}
+
+<a asp-action="Details" asp-route-id="@Model.Id" class="recipe-back-link">Back to the recipe</a>
+<h1>Notes for @Model.Title</h1>
+<p class="recipe-muted">Write like in Notion: start a line with <code>#</code>, <code>##</code>, <code>###</code>, <code>-</code>, <code>1.</code>,
+    <code>[]</code> or <code>&gt;</code> and a space to turn it into a heading, a list, a to-do or a quote.
+    <code>**bold**</code>, <code>*italic*</code>, <code>`code`</code> and <code>[links](https://…)</code> are shown when you leave the block.
+    The notes are saved in this browser as you type.</p>
+
+<div id="notes" data-recipe-id="@Model.Id" data-title="@Model.Title">
+    <div class="notes-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
+        <label for="notes-type" class="form-label mb-0">Block</label>
+        <select id="notes-type" class="form-select form-select-sm w-auto">
+            <option value="paragraph">Text</option>
+            <option value="heading1">Heading 1</option>
+            <option value="heading2">Heading 2</option>
+            <option value="heading3">Heading 3</option>
+            <option value="bullet">Bulleted list</option>
+            <option value="numbered">Numbered list</option>
+            <option value="todo">To-do</option>
+            <option value="quote">Quote</option>
+        </select>
+        <button id="notes-download" type="button" class="btn btn-outline-secondary btn-sm">Download .md</button>
+        <button id="notes-clear" type="button" class="btn btn-outline-danger btn-sm">Clear notes</button>
+        <span id="notes-status" class="recipe-muted small ms-auto" role="status"></span>
+    </div>
+    <div id="notes-document" class="notes-document" aria-label="Notes"></div>
+</div>
+<noscript><p class="alert alert-warning">The notes editor needs JavaScript.</p></noscript>
+
+@section Scripts {
+    <script src="~/js/notes-editor.js" asp-append-version="true"></script>
+}

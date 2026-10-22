@@ -63,6 +63,7 @@
             </dl>
             <div class="d-flex flex-wrap gap-2">
                 <a href="#instructions" class="btn btn-primary">Read instructions</a>
+                <a asp-action="Notes" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Notes</a>
                 <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Edit recipe</a>
             </div>
         </div>
