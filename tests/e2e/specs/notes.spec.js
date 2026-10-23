@@ -131,3 +131,46 @@ test('[C12-02] Enter, Backspace, Delete, line breaks, paste and clearing edit th
     await page.reload();
     expect(await shape(page)).toEqual([['paragraph', '']]);
 });
+
+test('[F3-01] Blocks are sorted by dragging or with the keyboard, slide to their place and keep the order', async ({ page, data }) => {
+    const recipe = await data.recipe({ title: 'QA notes soup' });
+    await page.goto('/Recipes/Notes/' + recipe.id);
+    await page.evaluate(id => localStorage.setItem(`recipe-manager-notes-${id}`, JSON.stringify({ version: 1, blocks: [
+        { id: 'a', type: 'numbered', text: 'Chop' }, { id: 'b', type: 'numbered', text: 'Fry' },
+        { id: 'c', type: 'numbered', text: 'Boil' }, { id: 'd', type: 'paragraph', text: 'Serve hot' }] })), recipe.id);
+    await page.reload();
+    const handle = text => blocks(page).filter({ hasText: text }).getByRole('button', { name: 'Drag to reorder' });
+
+    // Dropping on the upper half of a block puts the dragged one above it; list numbers follow the new order.
+    await handle('Boil').dragTo(blocks(page).first(), { targetPosition: { x: 40, y: 2 } });
+    expect(await shape(page)).toEqual([['numbered', 'Boil'], ['numbered', 'Chop'], ['numbered', 'Fry'], ['paragraph', 'Serve hot']]);
+    await expect(blocks(page).locator('.notes-marker')).toHaveText(['1.', '2.', '3.']);
+
+    // A drag that ends without a drop (Esc, or released outside) puts the blocks back.
+    const during = await page.locator('#notes-document').evaluate(view => {
+        const [first, , third] = view.querySelectorAll('.notes-block');
+        const fire = (target, type, y = 0) => target.dispatchEvent(new DragEvent(type,
+            { bubbles: true, cancelable: true, clientY: y, dataTransfer: new DataTransfer() }));
+        fire(first.querySelector('.notes-handle'), 'dragstart');
+        fire(third, 'dragover', third.getBoundingClientRect().bottom - 1);
+        const order = [...view.querySelectorAll('.notes-text')].map(text => text.textContent);
+        fire(first.querySelector('.notes-handle'), 'dragend');
+        return order;
+    });
+    expect(during).toEqual(['Chop', 'Fry', 'Boil', 'Serve hot']);
+    expect((await shape(page)).map(([, text]) => text)).toEqual(['Boil', 'Chop', 'Fry', 'Serve hot']);
+
+    // From the keyboard the focused handle moves its block one place, with the slide animation.
+    await handle('Serve hot').focus();
+    await page.keyboard.press('ArrowUp');
+    expect(await blocks(page).evaluateAll(rows => rows.some(row => row.getAnimations().length))).toBe(true);
+    await expect(handle('Serve hot')).toBeFocused();
+    await expect(page.locator('#notes-status')).toHaveText('Moved to position 3 of 4');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowDown');
+    expect((await shape(page)).map(([, text]) => text)).toEqual(['Boil', 'Chop', 'Serve hot', 'Fry']);
+
+    await page.reload();
+    expect((await shape(page)).map(([, text]) => text)).toEqual(['Boil', 'Chop', 'Serve hot', 'Fry']);
+    await expect(blocks(page).locator('.notes-marker')).toHaveText(['1.', '2.', '1.']);
+});
