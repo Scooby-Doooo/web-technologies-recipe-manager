@@ -217,6 +217,27 @@ body {
   padding: 0.125rem 0;
 }
 
+.notes-handle {
+  flex-shrink: 0;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: none;
+  color: #7a8c87;
+  cursor: grab;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+.notes-block:hover .notes-handle,
+.notes-handle:focus-visible {
+  opacity: 1;
+}
+
+.notes-dragging {
+  opacity: 0.5;
+}
+
 .notes-text {
   flex: 1;
   min-height: 1.5em;

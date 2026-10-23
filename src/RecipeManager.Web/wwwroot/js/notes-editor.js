@@ -110,6 +110,14 @@
         element.className = `notes-block notes-${item.type}`;
         element.classList.toggle('notes-done', item.type === 'todo' && item.checked);
         element.dataset.id = item.id;
+        const handle = document.createElement('button');
+        handle.type = 'button';
+        handle.className = 'notes-handle';
+        handle.draggable = true;
+        handle.textContent = '⠿';
+        handle.title = 'Drag to move, or press Arrow Up / Arrow Down';
+        handle.setAttribute('aria-label', 'Drag to reorder');
+        element.append(handle);
         if (item.type === 'bullet') element.append(marker('•'));
         if (item.type === 'numbered') element.append(marker(`${number(index)}.`));
         if (item.type === 'todo') {
@@ -333,6 +341,80 @@
         blocks.splice(replace ? index : index + 1, replace ? 1 : 0, ...added);
         render({ id: last.id, offset: end });
         saveSoon();
+    });
+
+    // Sorting (F3). Blocks that change place slide there: their old position is measured first,
+    // then each one is animated from it to the new position (the FLIP technique).
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+    function animated(change) {
+        const before = new Map([...view.children].map(element => [element.dataset.id, element.getBoundingClientRect().top]));
+        change();
+        if (reduceMotion.matches) return;
+        for (const element of view.children) {
+            const shift = before.get(element.dataset.id) - element.getBoundingClientRect().top;
+            if (shift) element.animate([{ transform: `translateY(${shift}px)` }, { transform: 'none' }], { duration: 200, easing: 'ease-out' });
+        }
+    }
+
+    // While a block is dragged, the DOM is reordered under the pointer; the list itself takes
+    // the new order only on drop, so a cancelled drag puts everything back.
+    let dragged = null;
+    let dropped = false;
+
+    view.addEventListener('dragstart', event => {
+        if (!event.target.classList?.contains('notes-handle')) return;
+        dragged = event.target.closest('.notes-block');
+        dropped = false;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', ''); // Firefox starts a drag only with data set
+        event.dataTransfer.setDragImage(dragged, 0, 0);
+        dragged.classList.add('notes-dragging');
+    });
+
+    view.addEventListener('dragover', event => {
+        if (!dragged) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        const over = event.target.closest?.('.notes-block');
+        if (!over || over === dragged) return;
+        const box = over.getBoundingClientRect();
+        const after = event.clientY > box.top + box.height / 2;
+        if ((after ? over.nextElementSibling : over.previousElementSibling) === dragged) return;
+        animated(() => view.insertBefore(dragged, after ? over.nextElementSibling : over));
+    });
+
+    view.addEventListener('drop', event => {
+        if (!dragged) return;
+        event.preventDefault();
+        dropped = true;
+    });
+
+    view.addEventListener('dragend', () => {
+        if (!dragged) return;
+        if (dropped) {
+            const order = [...view.children].map(element => element.dataset.id);
+            blocks.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+            save();
+        }
+        dragged = null;
+        // Rendering again renumbers the lists, or restores the old order after a cancelled drag.
+        animated(() => render());
+    });
+
+    // The handle also works from the keyboard, for people who do not use a mouse.
+    view.addEventListener('keydown', event => {
+        if (!event.target.classList?.contains('notes-handle') || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+        event.preventDefault();
+        const index = find(event.target.closest('.notes-block').dataset.id);
+        const target = index + (event.key === 'ArrowUp' ? -1 : 1);
+        if (target < 0 || target >= blocks.length) return;
+        const [item] = blocks.splice(index, 1);
+        blocks.splice(target, 0, item);
+        animated(() => render());
+        view.querySelector(`[data-id="${CSS.escape(item.id)}"] .notes-handle`).focus();
+        save();
+        status.textContent = `Moved to position ${target + 1} of ${blocks.length}`;
     });
 
     // Links in an editable block do not open on a plain click; Ctrl or Cmd + click opens them.
