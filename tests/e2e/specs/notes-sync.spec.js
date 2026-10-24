@@ -142,3 +142,103 @@ test('[C13-03] The hub checks the kitchen and every change before saving it', as
         }
     });
 });
+
+// Animations of 200-400 ms may end before an assertion looks, so the page logs each one as it starts.
+const recordAnimations = page => page.addInitScript(() => {
+    window.started = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+        window.started.push({ id: options?.id, text: this.querySelector?.('.notes-text')?.textContent ?? null });
+        return animate.call(this, keyframes, options);
+    };
+});
+const started = (page, id) => page.evaluate(id => {
+    const found = window.started.filter(item => item.id === id).map(item => item.text);
+    window.started = window.started.filter(item => item.id !== id);
+    return found;
+}, id);
+
+test('[C14-01] Changes from the other device flash, fade in and out and slide; its place is framed', async ({ browser, app }) => {
+    await withDevices(browser, app, async (user, { page: second }, recipe) => {
+        const first = user.page;
+        await recordAnimations(first);
+        await recordAnimations(second);
+        await openNotes(first, recipe.id);
+        await openNotes(second, recipe.id);
+
+        // Typing on the second device makes the block glow on the first; the second's own block does not.
+        await text(second, 1).click();
+        await second.keyboard.type('Butter');
+        await expect(text(first, 1)).toHaveText('Butter');
+        expect(await started(first, 'notes-changed')).toContain('Butter');
+        expect(await started(second, 'notes-changed')).toEqual([]);
+
+        // The block the second device is in has a frame on the first, and the frame follows it.
+        const peer = blocks(first).filter({ has: first.locator('.notes-peer-label') });
+        await expect(peer).toHaveCount(1);
+        await expect(peer.locator('.notes-text')).toHaveText('Butter');
+        await expect(peer.locator('.notes-peer-label')).toHaveText('Another device is here');
+        await text(second, 0).click();
+        await expect(peer.locator('.notes-text')).toHaveText('Notes for QA sync pie');
+
+        // A new block fades in.
+        await text(second, 1).click();
+        await second.keyboard.press('End');
+        await second.keyboard.press('Enter');
+        await second.keyboard.type('Sugar');
+        await expect(text(first, 2)).toHaveText('Sugar');
+        expect(await started(first, 'notes-added')).toHaveLength(1);
+
+        // The moved block and the one it passes slide to their places.
+        await blocks(second).nth(2).getByRole('button', { name: 'Drag to reorder' }).focus();
+        await second.keyboard.press('ArrowUp');
+        await expect(text(first, 1)).toHaveText('Sugar');
+        await expect.poll(async () => (await started(first, 'notes-move')).sort()).toEqual(['Butter', 'Sugar']);
+
+        // A removed block leaves a fading copy at its old place, which then goes away.
+        await text(second, 2).click();
+        await second.keyboard.press('Home');
+        await second.keyboard.press('Backspace');
+        await expect(blocks(first)).toHaveCount(2);
+        await expect(text(first, 1)).toHaveText('SugarButter');
+        expect(await started(first, 'notes-removed')).toEqual(['Butter']);
+        await expect(first.locator('.notes-ghost')).toHaveCount(0);
+
+        // With reduced motion nothing moves, but changes still glow.
+        await first.emulateMedia({ reducedMotion: 'reduce' });
+        await started(first, 'notes-changed');
+        await blocks(second).nth(1).getByRole('button', { name: 'Drag to reorder' }).focus();
+        await second.keyboard.press('ArrowUp');
+        await expect(text(first, 0)).toHaveText('SugarButter');
+        await text(second, 0).click();
+        await second.keyboard.press('End');
+        await second.keyboard.type('!');
+        await expect(text(first, 0)).toHaveText('SugarButter!');
+        expect(await started(first, 'notes-move')).toEqual([]);
+        expect(await started(first, 'notes-changed')).toContain('SugarButter!');
+
+        // When the second device closes, its frame goes away.
+        await expect(peer).toHaveCount(1);
+        await second.close();
+        await expect(first.locator('.notes-peer')).toHaveCount(0);
+    });
+});
+
+test('[C14-02] A device shares where it is only in notes it has opened', async ({ browser, app }) => {
+    await withDevices(browser, app, async (user, _, recipe) => {
+        await user.page.goto('/Live');
+        const focus = await user.page.evaluate(async id => {
+            const connection = new window.signalR.HubConnectionBuilder().withUrl('/hubs/kitchen').build();
+            await connection.start();
+            try {
+                await connection.invoke('FocusNotes', id, 'title');
+                return 'sent';
+            } catch (error) {
+                return error.message.replace(/^.*HubException: /, '');
+            } finally {
+                await connection.stop();
+            }
+        }, recipe.id);
+        expect(focus).toBe('Open the notes first.');
+    });
+});
