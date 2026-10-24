@@ -46,7 +46,7 @@ test('[C12-01] Markdown shortcuts build blocks that survive a reload and a new b
     await expect(last.locator('code')).toHaveText('180C');
     await expect(last.locator('img')).toHaveCount(0);
     await expect(last.getByRole('link')).toHaveCount(1);
-    await expect(page.locator('#notes-status')).toHaveText(/^Saved in this browser at /);
+    await expect(page.locator('#notes-status')).toHaveText(/^Saved at /);
 
     // The focused block shows its raw Markdown again.
     await last.locator('.notes-text').click();
@@ -63,7 +63,7 @@ test('[C12-01] Markdown shortcuts build blocks that survive a reload and a new b
     ].join('\n'));
 
     await page.reload();
-    await expect(page.locator('#notes-status')).toHaveText('Restored from this browser');
+    await expect(page.locator('#notes-status')).toHaveText('Up to date');
     expect(await shape(page)).toEqual(expected);
     await expect(blocks(page).nth(6)).toHaveClass(/notes-done/);
     // A new browser with the same saved site data, as after closing and opening the browser.
@@ -118,23 +118,29 @@ test('[C12-02] Enter, Backspace, Delete, line breaks, paste and clearing edit th
     });
     expect((await shape(page)).slice(-4)).toEqual([['heading2', 'Sauce'], ['todo', 'Tomatoes'], ['numbered', 'Simmer'], ['quote', 'Taste it']]);
 
-    // Broken saved data does not break the page; it starts a new document.
-    await expect(page.locator('#notes-status')).toHaveText(/^Saved in this browser at /);
+    // Broken data in this browser does not break the page; the document comes from the server.
+    await expect(page.locator('#notes-status')).toHaveText(/^Saved at /);
+    const saved = await shape(page);
     await page.evaluate(id => localStorage.setItem(`recipe-manager-notes-${id}`, '{"version":1,"blocks":[{"type":"script"}]}'), recipe.id);
     await page.reload();
-    expect(await shape(page)).toEqual([['heading1', 'Notes for QA notes stew'], ['paragraph', '']]);
+    await expect(page.locator('#notes-status')).toHaveText('Up to date');
+    expect(await shape(page)).toEqual(saved);
     await text(1).click();
     await page.keyboard.type('Temporary');
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Clear notes' }).click();
     expect(await shape(page)).toEqual([['paragraph', '']]);
+    await expect(page.locator('#notes-status')).toHaveText(/^Saved at /);
     await page.reload();
+    await expect(page.locator('#notes-status')).toHaveText('Up to date');
     expect(await shape(page)).toEqual([['paragraph', '']]);
 });
 
 test('[F3-01] Blocks are sorted by dragging or with the keyboard, slide to their place and keep the order', async ({ page, data }) => {
     const recipe = await data.recipe({ title: 'QA notes soup' });
     await page.goto('/Recipes/Notes/' + recipe.id);
+    // Once opened, the page writes its own copy; the test data must come after that.
+    await expect(page.locator('#notes-status')).toHaveText('Up to date');
     await page.evaluate(id => localStorage.setItem(`recipe-manager-notes-${id}`, JSON.stringify({ version: 1, blocks: [
         { id: 'a', type: 'numbered', text: 'Chop' }, { id: 'b', type: 'numbered', text: 'Fry' },
         { id: 'c', type: 'numbered', text: 'Boil' }, { id: 'd', type: 'paragraph', text: 'Serve hot' }] })), recipe.id);
