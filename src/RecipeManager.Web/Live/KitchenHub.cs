@@ -51,8 +51,34 @@ public class KitchenHub : Hub
     {
         var (_, version, blocks) = await LoadNotes(recipeId);
         await Groups.AddToGroupAsync(Context.ConnectionId, NotesGroup(recipeId));
+        OpenedNotes.Add(recipeId);
+        // The copies already open answer with the block they are in (C14).
+        await Clients.OthersInGroup(NotesGroup(recipeId)).SendAsync("joined");
         return new { version, blocks };
     }
+
+    // Tells the other open copies which block this one is in, or null when it left the document.
+    // Only notes this connection opened (and so passed the kitchen check) are accepted.
+    [Authorize]
+    public Task FocusNotes(int recipeId, string? blockId)
+    {
+        if (!OpenedNotes.Contains(recipeId)) throw new HubException("Open the notes first.");
+        if (blockId?.Length > 64) throw new HubException("The change has an invalid block id.");
+        return Clients.OthersInGroup(NotesGroup(recipeId)).SendAsync("focus", new { connection = Context.ConnectionId, block = blockId });
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        // A closed copy is no longer anywhere in the document.
+        foreach (var recipeId in OpenedNotes)
+            await Clients.OthersInGroup(NotesGroup(recipeId)).SendAsync("focus", new { connection = Context.ConnectionId, block = (string?)null });
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    // Context.Items lives as long as the connection, unlike the hub object, which is made per call.
+    private HashSet<int> OpenedNotes => (HashSet<int>)(Context.Items.TryGetValue("notes", out var opened)
+        ? opened!
+        : Context.Items["notes"] = new HashSet<int>());
 
     // Applies one editor's change and sends the new document to everyone who has the notes open,
     // the sender included: that answer is how the sender learns its change is saved.

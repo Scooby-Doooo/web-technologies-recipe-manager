@@ -166,6 +166,7 @@
 
     function render(focus) {
         view.replaceChildren(...blocks.map(row));
+        markPeers();
         if (focus) place(focus.id, focus.offset);
     }
 
@@ -371,7 +372,7 @@
         if (reduceMotion.matches) return;
         for (const element of view.children) {
             const shift = before.get(element.dataset.id) - element.getBoundingClientRect().top;
-            if (shift) element.animate([{ transform: `translateY(${shift}px)` }, { transform: 'none' }], { duration: 200, easing: 'ease-out' });
+            if (shift) element.animate([{ transform: `translateY(${shift}px)` }, { transform: 'none' }], { duration: 200, easing: 'ease-out', id: 'notes-move' });
         }
     }
 
@@ -522,19 +523,99 @@
         // Copies, so typing into a block does not also change the synced document.
         const next = (pending ? apply(synced.blocks, pending) : synced.blocks).map(copy);
         if (JSON.stringify(next) !== JSON.stringify(blocks)) {
+            const previous = blocks;
             blocks = next;
-            refresh();
+            refresh(previous);
         }
         keep();
     }
 
-    function refresh() {
+    // Changes from other devices are shown as they happen (C14): blocks slide to their new place
+    // (FLIP from F3), a new block fades in, a removed one fades out where it was, and a block
+    // whose text, type or check changed flashes. Only what differs from the previous screen is
+    // marked, so one's own edits, which are already on the screen, are not.
+    function refresh(previous) {
         const active = document.activeElement;
         const current = blockOf(active);
         const handle = active?.classList?.contains('notes-handle') ? active.closest('.notes-block').dataset.id : null;
-        render(current && find(current.item.id) >= 0 ? { id: current.item.id, offset: caretOffset(current.text) } : undefined);
+        const ghosts = fadeOut(previous);
+        animated(() => render(current && find(current.item.id) >= 0 ? { id: current.item.id, offset: caretOffset(current.text) } : undefined));
         if (handle) view.querySelector(`[data-id="${CSS.escape(handle)}"] .notes-handle`)?.focus();
+        document.body.append(...ghosts);
+        const before = new Map(previous.map(item => [item.id, item]));
+        for (const element of view.children) {
+            const old = before.get(element.dataset.id);
+            const item = blocks[find(element.dataset.id)];
+            if (!old) {
+                if (!reduceMotion.matches) {
+                    element.animate([{ opacity: 0, transform: 'translateY(-0.5rem)' }, { opacity: 1, transform: 'none' }],
+                        { duration: 300, easing: 'ease-out', id: 'notes-added' });
+                }
+                flash(element);
+            } else if (old.type !== item.type || old.text !== item.text || old.checked !== item.checked) {
+                flash(element);
+            }
+        }
     }
+
+    // The colour fades out slowly, so typing on another device reads as a glow on that block.
+    const flash = element => element.animate([{ backgroundColor: '#fff1b8' }, { backgroundColor: 'transparent' }],
+        { duration: 1200, easing: 'ease-in', id: 'notes-changed' });
+
+    // A removed block is gone from the list at once; a copy of it stays at its old place on top
+    // of the page and fades away, while the blocks below slide up.
+    function fadeOut(previous) {
+        const kept = new Set(blocks.map(item => item.id));
+        return previous.filter(item => !kept.has(item.id)).map(item => {
+            const element = view.querySelector(`[data-id="${CSS.escape(item.id)}"]`);
+            if (!element) return null;
+            const box = element.getBoundingClientRect();
+            const ghost = element.cloneNode(true);
+            ghost.classList.add('notes-ghost');
+            ghost.inert = true;
+            ghost.setAttribute('aria-hidden', 'true');
+            Object.assign(ghost.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px` });
+            ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: reduceMotion.matches ? 'none' : 'scale(0.97)' }],
+                { duration: 400, easing: 'ease-in', id: 'notes-removed' }).finished.then(() => ghost.remove());
+            return ghost;
+        }).filter(Boolean);
+    }
+
+    // Where the other devices are: each open copy tells the others which block it is in, and
+    // that block gets a frame with a label. A copy that closes is taken off by the server.
+    const peers = new Map();
+    let focusTimer = null;
+    let sharedFocus;
+
+    function markPeers() {
+        const taken = new Set(peers.values());
+        for (const element of view.children) {
+            const busy = taken.has(element.dataset.id);
+            element.classList.toggle('notes-peer', busy);
+            if (busy && !element.querySelector('.notes-peer-label')) {
+                const label = document.createElement('span');
+                label.className = 'notes-peer-label';
+                label.textContent = 'Another device is here';
+                element.append(label);
+            } else if (!busy) {
+                element.querySelector('.notes-peer-label')?.remove();
+            }
+        }
+    }
+
+    // Focus moves from block to block through a focusout and a focusin; only where it ends is sent.
+    function shareFocus() {
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+            const id = blockOf(document.activeElement)?.item.id ?? null;
+            if (!ready || id === sharedFocus) return;
+            sharedFocus = id;
+            connection.invoke('FocusNotes', recipeId, id).catch(() => { sharedFocus = undefined; });
+        }, 100);
+    }
+
+    view.addEventListener('focusin', shareFocus);
+    view.addEventListener('focusout', shareFocus);
 
     // Documents that arrive while the notes are being opened or a block is dragged wait for that to end.
     function receive(doc) {
@@ -587,6 +668,8 @@
             adopt(doc);
             ready = true;
             status.textContent = 'Up to date';
+            sharedFocus = undefined;
+            shareFocus();
         } catch (error) {
             status.textContent = connection.state === 'Connected' ? `The notes could not be opened: ${serverError(error)}` : offline;
         } finally {
@@ -597,11 +680,24 @@
     }
 
     connection.on('notes', receive);
+    connection.on('focus', ({ connection: peer, block: id }) => {
+        if (id) peers.set(peer, id);
+        else peers.delete(peer);
+        markPeers();
+    });
+    // A copy that has just opened does not know where the others are yet.
+    connection.on('joined', () => {
+        sharedFocus = undefined;
+        shareFocus();
+    });
     // The hub also sends the kitchen's recipe feed (C11); this page does not show it.
     connection.on('changes', () => { });
     connection.onreconnecting(() => {
         ready = false;
         status.textContent = offline;
+        // The others send their places again once this copy has opened the notes anew.
+        peers.clear();
+        markPeers();
     });
     connection.onreconnected(open);
     // withAutomaticReconnect gives up after attempts at 0, 2, 10 and 30 s.
