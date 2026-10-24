@@ -120,7 +120,8 @@ builder.Services.AddScoped<MealImporter>();
 
 // Live feed of recipe changes (C10).
 builder.Services.AddSingleton<KitchenFeed>();
-builder.Services.AddSignalR();
+// Notes changes carry whole blocks (NotesChange.MaxText characters each), more than the default 32 KB.
+builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 512 * 1024);
 builder.Services.AddScoped<KitchenFeedInterceptor>();
 
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();

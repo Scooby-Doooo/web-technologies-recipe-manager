@@ -240,6 +240,27 @@ namespace RecipeManager.Web.Migrations
                     b.ToTable("RecipeIngredients");
                 });
 
+            modelBuilder.Entity("RecipeManager.Web.Models.RecipeNotes", b =>
+                {
+                    b.Property<int>("RecipeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Blocks")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("RecipeId");
+
+                    b.ToTable("RecipeNotes");
+                });
+
             modelBuilder.Entity("RecipeManager.Web.Models.TelegramChat", b =>
                 {
                     b.Property<int>("Id")
@@ -389,6 +410,17 @@ namespace RecipeManager.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("Ingredient");
+
+                    b.Navigation("Recipe");
+                });
+
+            modelBuilder.Entity("RecipeManager.Web.Models.RecipeNotes", b =>
+                {
+                    b.HasOne("RecipeManager.Web.Models.Recipe", "Recipe")
+                        .WithOne()
+                        .HasForeignKey("RecipeManager.Web.Models.RecipeNotes", "RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Recipe");
                 });

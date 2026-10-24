@@ -1,13 +1,15 @@
 // Notes editor (C12). The document is an implicit list of blocks, like in Notion: each block has
 // an id, a type and plain Markdown text. The focused block shows its raw text; the others show
-// the inline Markdown rendered. The whole document is kept in localStorage.
+// the inline Markdown rendered. Since C13 the document lives on the server and every open copy
+// is kept in sync through the kitchen hub; localStorage keeps a copy for working offline.
 (() => {
     const root = document.getElementById('notes');
     if (!root) return;
     const view = document.getElementById('notes-document');
     const typeSelect = document.getElementById('notes-type');
     const status = document.getElementById('notes-status');
-    const storageKey = `recipe-manager-notes-${root.dataset.recipeId}`;
+    const recipeId = Number(root.dataset.recipeId);
+    const storageKey = `recipe-manager-notes-${recipeId}`;
     const labels = {
         paragraph: 'Text', heading1: 'Heading 1', heading2: 'Heading 2', heading3: 'Heading 3',
         bullet: 'Bulleted list', numbered: 'Numbered list', todo: 'To-do', quote: 'Quote'
@@ -17,41 +19,57 @@
         [/^1[.)]\s/, 'numbered'], [/^\[ ?\]\s/, 'todo'], [/^>\s/, 'quote']];
     const lists = new Set(['bullet', 'numbered', 'todo']);
     let blocks = [];
+    // The last document received from the server; what differs from it is not saved there yet.
+    // null until the first connection for notes saved by the C12 version, see open().
+    let synced = null;
     let focusedId = null;
     let saveTimer = null;
 
     const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const block = (type = 'paragraph', text = '', checked = false) => ({ id: newId(), type, text, checked });
+    const copy = ({ id, type, text, checked }) => ({ id, type, text, checked });
     const find = id => blocks.findIndex(item => item.id === id);
+    // Same ids as NotesChange.Initial on the server, so a new document is the same everywhere.
+    const initial = () => [{ id: 'title', type: 'heading1', text: `Notes for ${root.dataset.title}`, checked: false },
+        { id: 'start', type: 'paragraph', text: '', checked: false }];
+
+    // Stored data is checked like any input: unknown types or fields are dropped.
+    const valid = list => Array.isArray(list)
+        ? list.filter(item => item && typeof item.id === 'string' && labels[item.type] && typeof item.text === 'string')
+            .map(item => ({ id: item.id, type: item.type, text: item.text, checked: item.checked === true }))
+        : [];
 
     function load() {
         try {
             const saved = JSON.parse(localStorage.getItem(storageKey));
-            if (saved?.version === 1 && Array.isArray(saved.blocks)) {
-                // Stored data is checked like any input: unknown types or fields are dropped.
-                const valid = saved.blocks
-                    .filter(item => item && typeof item.id === 'string' && labels[item.type] && typeof item.text === 'string')
-                    .map(item => ({ id: item.id, type: item.type, text: item.text, checked: item.checked === true }));
-                if (valid.length) {
-                    status.textContent = 'Restored from this browser';
-                    return valid;
+            const restored = valid(saved?.blocks);
+            if ((saved?.version === 1 || saved?.version === 2) && restored.length) {
+                status.textContent = 'Restored from this browser';
+                if (saved.version === 2 && Number.isInteger(saved.synced?.version)) {
+                    synced = { version: saved.synced.version, blocks: valid(saved.synced.blocks) };
                 }
+                return restored;
             }
         } catch {
-            // Storage is off or holds something broken: start a new document.
+            // Storage is off or holds something broken: start from the new document.
         }
-        return [block('heading1', `Notes for ${root.dataset.title}`), block()];
+        synced = { version: 0, blocks: initial() };
+        return initial();
+    }
+
+    function keep() {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify({ version: 2, savedAt: Date.now(), blocks, synced }));
+        } catch {
+            // Without storage the notes still sync; only working offline is lost.
+        }
     }
 
     function save() {
         clearTimeout(saveTimer);
         saveTimer = null;
-        try {
-            localStorage.setItem(storageKey, JSON.stringify({ version: 1, savedAt: Date.now(), blocks }));
-            status.textContent = `Saved in this browser at ${new Date().toLocaleTimeString()}`;
-        } catch {
-            status.textContent = 'This browser does not allow saving notes.';
-        }
+        keep();
+        send();
     }
 
     function saveSoon() {
@@ -400,6 +418,7 @@
         dragged = null;
         // Rendering again renumbers the lists, or restores the old order after a cancelled drag.
         animated(() => render());
+        catchUp();
     });
 
     // The handle also works from the keyboard, for people who do not use a mouse.
@@ -413,7 +432,7 @@
         blocks.splice(target, 0, item);
         animated(() => render());
         view.querySelector(`[data-id="${CSS.escape(item.id)}"] .notes-handle`).focus();
-        save();
+        saveSoon();
         status.textContent = `Moved to position ${target + 1} of ${blocks.length}`;
     });
 
@@ -449,9 +468,163 @@
         save();
     });
 
+    // Sync (C13). A device sends only what it changed since the last document it received
+    // (see NotesChange on the server). The server applies the change and sends the new document
+    // to every open copy; each copy puts its own unsent edits on top of it again, so edits of
+    // different blocks on two devices both survive.
+    function diff(base, current) {
+        const before = new Map(base.map(item => [item.id, item]));
+        const upserts = current.filter(item => {
+            const old = before.get(item.id);
+            return !old || old.type !== item.type || old.text !== item.text || old.checked !== item.checked;
+        }).map(copy);
+        const ids = new Set(current.map(item => item.id));
+        const deletes = base.filter(item => !ids.has(item.id)).map(item => item.id);
+        const moved = current.length !== base.length || current.some((item, index) => item.id !== base[index].id);
+        if (!upserts.length && !deletes.length && !moved) return null;
+        return { upserts, deletes, order: moved ? current.map(item => item.id) : null };
+    }
+
+    // The same steps as NotesChange.ApplyTo on the server.
+    function apply(list, change) {
+        const deleted = new Set(change.deletes);
+        const result = list.filter(item => !deleted.has(item.id));
+        for (const item of change.upserts) {
+            const index = result.findIndex(old => old.id === item.id);
+            if (index >= 0) result[index] = item;
+            else result.push(item);
+        }
+        if (!change.order) return result;
+        const byId = new Map(result.map(item => [item.id, item]));
+        const placed = [...new Set(change.order)].filter(id => byId.has(id));
+        let previous = null;
+        for (const item of result) {
+            if (!placed.includes(item.id)) placed.splice(previous === null ? 0 : placed.indexOf(previous) + 1, 0, item.id);
+            previous = item.id;
+        }
+        return placed.map(id => byId.get(id));
+    }
+
+    const offline = 'Offline: changes stay in this browser and are sent when the connection is back.';
+    const connection = new window.signalR.HubConnectionBuilder().withUrl(root.dataset.hubUrl).withAutomaticReconnect().build();
+    let ready = false;
+    let opening = false;
+    let sending = false;
+    let waiting = null;
+    const serverError = error => error?.message?.match(/HubException: (.*)$/)?.[1] ?? 'the server did not answer.';
+
+    // Takes a document from the server, keeping this device's unsent edits on top of it.
+    // The page is drawn again only when something visible changed, so the echo of one's own
+    // typing does not move the caret.
+    function adopt(doc) {
+        const pending = diff(synced.blocks, blocks);
+        synced = { version: doc.version, blocks: doc.blocks.map(copy) };
+        // Copies, so typing into a block does not also change the synced document.
+        const next = (pending ? apply(synced.blocks, pending) : synced.blocks).map(copy);
+        if (JSON.stringify(next) !== JSON.stringify(blocks)) {
+            blocks = next;
+            refresh();
+        }
+        keep();
+    }
+
+    function refresh() {
+        const active = document.activeElement;
+        const current = blockOf(active);
+        const handle = active?.classList?.contains('notes-handle') ? active.closest('.notes-block').dataset.id : null;
+        render(current && find(current.item.id) >= 0 ? { id: current.item.id, offset: caretOffset(current.text) } : undefined);
+        if (handle) view.querySelector(`[data-id="${CSS.escape(handle)}"] .notes-handle`)?.focus();
+    }
+
+    // Documents that arrive while the notes are being opened or a block is dragged wait for that to end.
+    function receive(doc) {
+        if (!waiting || doc.version > waiting.version) waiting = doc;
+        catchUp();
+    }
+
+    function catchUp() {
+        if (opening || dragged || !waiting || !synced) return;
+        const doc = waiting;
+        waiting = null;
+        if (doc.version > synced.version) adopt(doc);
+    }
+
+    async function send() {
+        if (!ready) {
+            if (saveTimer === null && connection.state !== 'Connecting') status.textContent = offline;
+            return;
+        }
+        if (sending) return;
+        const change = diff(synced.blocks, blocks);
+        if (!change) {
+            status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+            return;
+        }
+        sending = true;
+        status.textContent = 'Saving…';
+        try {
+            // The new document comes back as a "notes" message before this call completes.
+            await connection.invoke('SaveNotes', recipeId, change);
+        } catch (error) {
+            sending = false;
+            status.textContent = connection.state === 'Connected' ? `Not saved: ${serverError(error)}` : offline;
+            return;
+        }
+        sending = false;
+        // Typing during the call is sent next.
+        if (diff(synced.blocks, blocks)) send();
+        else status.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+    }
+
+    // Joins the recipe's group and takes the current document; runs again after every reconnect.
+    async function open() {
+        opening = true;
+        try {
+            const doc = await connection.invoke('OpenNotes', recipeId);
+            // Notes saved by the C12 version have no synced copy. If the server document was never
+            // saved they replace it; otherwise their blocks are added to it, so nothing is lost.
+            synced ??= doc.version === 0 ? doc : { version: 0, blocks: [] };
+            adopt(doc);
+            ready = true;
+            status.textContent = 'Up to date';
+        } catch (error) {
+            status.textContent = connection.state === 'Connected' ? `The notes could not be opened: ${serverError(error)}` : offline;
+        } finally {
+            opening = false;
+        }
+        catchUp();
+        if (ready && diff(synced.blocks, blocks)) send();
+    }
+
+    connection.on('notes', receive);
+    // The hub also sends the kitchen's recipe feed (C11); this page does not show it.
+    connection.on('changes', () => { });
+    connection.onreconnecting(() => {
+        ready = false;
+        status.textContent = offline;
+    });
+    connection.onreconnected(open);
+    // withAutomaticReconnect gives up after attempts at 0, 2, 10 and 30 s.
+    connection.onclose(() => {
+        ready = false;
+        status.textContent = `${offline} Reload the page to connect again.`;
+    });
+
     // Closing the tab must not lose the last 300 ms of typing.
     window.addEventListener('pagehide', () => { if (saveTimer) save(); });
 
     blocks = load();
     render();
+    (async () => {
+        for (;;) {
+            try {
+                await connection.start();
+                break;
+            } catch {
+                status.textContent = offline;
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+        await open();
+    })();
 })();

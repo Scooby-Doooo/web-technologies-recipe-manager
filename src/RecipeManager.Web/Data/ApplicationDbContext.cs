@@ -24,6 +24,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Tenant> Tenants { get; set; }
     public DbSet<TelegramChat> TelegramChats { get; set; }
     public DbSet<TelegramLinkCode> TelegramLinkCodes { get; set; }
+    public DbSet<RecipeNotes> RecipeNotes { get; set; }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -107,6 +108,16 @@ public class ApplicationDbContext : DbContext
             .WithMany(recipe => recipe.RecipeIngredients)
             .HasForeignKey(item => item.RecipeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RecipeNotes>().HasKey(item => item.RecipeId);
+        modelBuilder.Entity<RecipeNotes>()
+            .HasOne(item => item.Recipe)
+            .WithOne()
+            .HasForeignKey<RecipeNotes>(item => item.RecipeId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Two devices saving at once: the second save fails and is applied again to the newer document.
+        modelBuilder.Entity<RecipeNotes>().Property(item => item.Version).IsConcurrencyToken();
+        modelBuilder.Entity<RecipeNotes>().HasQueryFilter(item => item.Recipe.TenantId == CurrentTenantId);
 
         modelBuilder.Entity<RecipeIngredient>()
             .HasOne(item => item.Ingredient)
