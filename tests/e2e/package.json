@@ -4,11 +4,16 @@
   "private": true,
   "description": "QA2: isolated browser tests for C1 MVC and F2 category autocomplete",
   "type": "module",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "test": "node run.js",
     "test:headed": "node run.js --headed",
     "coverage": "node coverage.js"
   },
-  "devDependencies": { "@playwright/test": "1.64.0" }
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "pg": "8.23.1"
+  }
 }

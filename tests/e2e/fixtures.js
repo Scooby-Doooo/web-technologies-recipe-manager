@@ -5,8 +5,8 @@ import { closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readdi
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 import { startFakeMealDb } from './fake-mealdb.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -14,9 +14,6 @@ const project = path.join(root, 'src/RecipeManager.Web');
 
 function protectedFiles() {
     const files = [path.join(root, 'README.md')];
-    for (const name of readdirSync(project)) {
-        if (/\.db(?:-(?:wal|shm|journal))?$/.test(name)) files.push(path.join(project, name));
-    }
     const uploads = path.join(project, 'wwwroot/uploads/recipes');
     const visit = directory => {
         if (!existsSync(directory)) return;
@@ -43,6 +40,41 @@ async function freePort() {
     return port;
 }
 
+// Every test server gets an own database in a PostgreSQL container, created here and dropped
+// afterwards, so the suite never touches the developer's database. The container is kept
+// between runs; it listens only on 127.0.0.1.
+const postgres = { container: 'recipe-manager-e2e-postgres', host: '127.0.0.1', port: 55432, user: 'postgres', password: 'e2e' };
+
+async function adminQuery(sql) {
+    const client = new pg.Client({ ...postgres, database: 'postgres' });
+    await client.connect();
+    try { return await client.query(sql); } finally { await client.end(); }
+}
+
+async function ensurePostgres() {
+    const running = spawnSync('docker', ['inspect', '-f', '{{.State.Running}}', postgres.container], { encoding: 'utf8', windowsHide: true });
+    if (running.stdout.trim() !== 'true') {
+        spawnSync('docker', ['rm', '-f', postgres.container], { windowsHide: true });
+        const started = spawnSync('docker', ['run', '-d', '--name', postgres.container, '-e', `POSTGRES_PASSWORD=${postgres.password}`,
+            '-p', `${postgres.host}:${postgres.port}:5432`, 'postgres:17-alpine'], { encoding: 'utf8', windowsHide: true });
+        if (started.status !== 0) throw new Error(`Docker could not start the test PostgreSQL.
+${started.stderr}`);
+    }
+    await expect.poll(async () => { try { await adminQuery('SELECT 1'); return true; } catch { return false; } },
+        { timeout: 30_000, message: 'Test PostgreSQL accepts connections' }).toBe(true);
+}
+
+export async function createDatabase(name) {
+    await ensurePostgres();
+    const database = `qa_${name}_${process.pid}_${Date.now()}`.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    await adminQuery(`CREATE DATABASE "${database}"`);
+    return {
+        config: { ...postgres, database },
+        connectionString: `Host=${postgres.host};Port=${postgres.port};Database=${database};Username=${postgres.user};Password=${postgres.password}`,
+        drop: () => adminQuery(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
+    };
+}
+
 async function stop(child) {
     if (!child || child.exitCode !== null) return;
     const closed = new Promise(resolve => child.once('close', resolve));
@@ -55,10 +87,10 @@ async function stop(child) {
 export async function startExtraServer(directory, name, environment, settings = {}) {
     const dll = path.join(project, 'bin/Debug/net10.0/RecipeManager.Web.dll');
     const baseURL = `http://127.0.0.1:${await freePort()}`;
+    const database = await createDatabase(name);
     const env = { ...process.env, ASPNETCORE_ENVIRONMENT: environment,
-        ConnectionStrings__DefaultConnection: `Data Source=${path.join(directory, name + '.db')}`,
+        ConnectionStrings__DefaultConnection: database.connectionString,
         Database__MigrateOnStartup: 'true',
-        DataProtection__KeysPath: path.join(directory, name + '-keys'),
         Analytics__MeasurementId: '',
         Authentication__Google__ClientId: '',
         Telegram__BotToken: '',
@@ -72,7 +104,7 @@ export async function startExtraServer(directory, name, environment, settings = 
     const child = spawn('dotnet', [dll, '--urls', baseURL, '--contentRoot', project], {
         cwd: project, env, stdio: ['ignore', log, log], windowsHide: true
     });
-    const close = async () => { await stop(child); closeSync(log); };
+    const close = async () => { await stop(child); closeSync(log); await database.drop(); };
     try {
         await expect.poll(async () => {
             if (child.exitCode !== null) throw new Error(`Extra ${name} server exited. See ${name}.log.`);
@@ -92,7 +124,6 @@ export const test = base.extend({
     app: [async ({}, use) => {
         const before = protectedFiles();
         const directory = mkdtempSync(path.join(tmpdir(), 'recipe-manager-qa2-'));
-        const database = path.join(directory, 'test.db');
         const webroot = path.join(directory, 'wwwroot');
         cpSync(path.join(project, 'wwwroot'), webroot, {
             recursive: true,
@@ -105,11 +136,12 @@ export const test = base.extend({
         let log;
         let baseURL;
         const mealDb = await startFakeMealDb();
+        const database = await createDatabase('shared');
         try {
-            command(['ef', 'database', 'update', '--no-build', '--project', project, '--connection', `Data Source=${database}`]);
+            command(['ef', 'database', 'update', '--no-build', '--project', project, '--connection', database.connectionString]);
             baseURL = `http://127.0.0.1:${await freePort()}`;
             const env = { ...process.env, ASPNETCORE_ENVIRONMENT: 'Development',
-                ConnectionStrings__DefaultConnection: `Data Source=${database}`,
+                ConnectionStrings__DefaultConnection: database.connectionString,
                 Analytics__MeasurementId: 'G-QA2TEST000',
                 Authentication__EnableTestSignIn: 'true',
                 // Development loads the developer's user secrets; the suite never uses a real Google
@@ -140,14 +172,15 @@ export const test = base.extend({
         } finally {
             await stop(child);
             await mealDb.close();
+            await database.drop();
             if (log !== undefined) closeSync(log);
             const preserved = JSON.stringify(protectedFiles()) === JSON.stringify(before);
             writeFileSync(path.join(directory, 'isolation.json'), JSON.stringify({
                 baseURL, ownedProcessId: child?.pid, protectedFileCount: Object.keys(before).length,
-                originalDatabaseUploadsReadmeUnchanged: preserved, ownedProcessStopped: true
+                originalUploadsReadmeUnchanged: preserved, ownedProcessStopped: true
             }, null, 2));
             console.log(`Isolated QA2 artifacts: ${directory}`);
-            expect(preserved, 'Working database, uploads and README remain unchanged').toBe(true);
+            expect(preserved, 'Working uploads and README remain unchanged').toBe(true);
         }
     }, { scope: 'worker', timeout: 60_000 }],
     baseURL: async ({ app }, use) => { await use(app.baseURL); },
@@ -188,12 +221,13 @@ export const test = base.extend({
             ingredient: name => create('ingredients', { name }),
             recipe: (fields = {}) => create('recipes', { title: 'QA2 fixture recipe', instructions: 'Prepare and serve.',
                 cookingTimeMinutes: 20, servings: 2, categoryId: 1, ...fields }),
-            link: (recipeId, ingredientId) => {
-                const db = new DatabaseSync(app.database);
+            link: async (recipeId, ingredientId) => {
+                const client = new pg.Client(app.database.config);
+                await client.connect();
                 try {
-                    db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
-                    db.prepare('INSERT INTO RecipeIngredients(RecipeId,IngredientId,Quantity,Unit) VALUES(?,?,?,?)').run(recipeId, ingredientId, 2, 'pieces');
-                } finally { db.close(); }
+                    await client.query('INSERT INTO "RecipeIngredients"("RecipeId","IngredientId","Quantity","Unit") VALUES($1,$2,$3,$4)',
+                        [recipeId, ingredientId, 2, 'pieces']);
+                } finally { await client.end(); }
             }
         });
         for (const kind of ['recipes', 'categories', 'ingredients']) {

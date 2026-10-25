@@ -154,7 +154,7 @@ test('[C1-08] relationships prevent lookup deletion and survive recipe editing',
     const category = await data.category('QA2 related category');
     const ingredient = await data.ingredient('QA2 related ingredient');
     const recipe = await data.recipe({ title: 'QA2 related recipe', categoryId: category.id });
-    data.link(recipe.id, ingredient.id); // Test setup: MVC has no ingredient relationship editor.
+    await data.link(recipe.id, ingredient.id); // Test setup: MVC has no ingredient relationship editor.
     await page.goto('/Recipes/Details/' + recipe.id);
     await expect(page.locator('#ingredients')).toContainText('QA2 related ingredient');
     await expect(page.locator('.recipe-ingredient-amount')).toHaveText(/^2(?:[.,]0+)? pieces$/);

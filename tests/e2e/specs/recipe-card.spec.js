@@ -12,7 +12,7 @@ async function openCard(page, id) {
 test('[F6-01] recipe card draws the photo and follows the format, colour and ingredient options', async ({ page, request, data }) => {
     const ingredient = await data.ingredient('QA2 card flour');
     const recipe = await data.recipe({ title: 'QA2 recipe card' });
-    data.link(recipe.id, ingredient.id);
+    await data.link(recipe.id, ingredient.id);
     // A plain red photo makes it easy to tell where the canvas drew it.
     await page.goto('/');
     const red = Buffer.from(await page.evaluate(() => {
@@ -58,7 +58,7 @@ test('[F6-01] recipe card draws the photo and follows the format, colour and ing
 
 test('[F6-02] recipe card without a photo draws a plate and survives long text', async ({ page, data }) => {
     const recipe = await data.recipe({ title: 'QA2 card ' + 'Supercalifragilisticexpialidocious'.repeat(4) + ' with a very long title' });
-    for (let i = 1; i <= 9; i++) data.link(recipe.id, (await data.ingredient(`QA2 card ingredient ${i} with a long name`)).id);
+    for (let i = 1; i <= 9; i++) await data.link(recipe.id, (await data.ingredient(`QA2 card ingredient ${i} with a long name`)).id);
     await openCard(page, recipe.id);
     expect(await pixel(page, 540, 222)).toEqual([31, 122, 95]); // plate background in the green theme
     await page.getByLabel('Format').selectOption('story');

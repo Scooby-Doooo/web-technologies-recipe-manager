@@ -7,7 +7,7 @@ test('[SEO-01] recipe landing exposes meta tags and schema.org Recipe data', asy
     const recipe = await data.recipe({ title: 'QA2 SEO pasta', description: 'Pasta with tomatoes </script> and herbs.',
         instructions: 'Boil the water.\n\nCook the pasta.\nServe warm.', cookingTimeMinutes: 25, servings: 4 });
     const ingredient = await data.ingredient('QA2 SEO tomato');
-    data.link(recipe.id, ingredient.id);
+    await data.link(recipe.id, ingredient.id);
     const { requestToken, headerName } = await (await request.get('/api/antiforgery')).json();
     const upload = await request.post(`/api/recipes/${recipe.id}/image`, {
         headers: { [headerName]: requestToken },
