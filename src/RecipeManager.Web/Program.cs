@@ -18,6 +18,7 @@ using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
 using RecipeManager.Web.Live;
 using RecipeManager.Web.MealDb;
+using RecipeManager.Web.Photos;
 using RecipeManager.Web.Telegram;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -111,6 +112,13 @@ builder.Services.AddScoped<TelegramBot>();
 builder.Services.AddSingleton<TelegramService>();
 if (telegram.Enabled)
     builder.Services.AddHostedService(services => services.GetRequiredService<TelegramService>());
+
+// Recipe photos (C19): Supabase Storage when its URL and secret key are set, else wwwroot/uploads.
+builder.Services.Configure<SupabaseStorageOptions>(builder.Configuration.GetSection("Supabase"));
+if (builder.Configuration.GetSection("Supabase").Get<SupabaseStorageOptions>()?.Enabled == true)
+    builder.Services.AddHttpClient<IPhotoStorage, SupabasePhotoStorage>();
+else
+    builder.Services.AddSingleton<IPhotoStorage, LocalPhotoStorage>();
 
 // Recipe import from TheMealDB (C8). Its free test key needs no secret.
 builder.Services.AddMemoryCache();

@@ -20,9 +20,10 @@
     function loadPhoto() {
         if (!recipe.imagePath) return Promise.resolve(null);
         const url = new URL(recipe.imagePath, location.href);
-        // A picture from another site would taint the canvas, and toBlob would then refuse to export it.
-        if (url.origin !== location.origin) return Promise.resolve(null);
         const image = new Image();
+        // A photo from Supabase Storage is on another site. Loaded without CORS it would taint the
+        // canvas, and toBlob would then refuse to export it; Storage answers CORS requests for public photos.
+        if (url.origin !== location.origin) image.crossOrigin = 'anonymous';
         image.src = url.href;
         return image.decode().then(() => image, () => null);
     }

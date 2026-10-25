@@ -5,7 +5,9 @@
     ViewData["Description"] = RecipeStructuredData.Summary(Model);
     ViewData["OgType"] = "article";
     var siteUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.PathBase}";
-    var imageUrl = string.IsNullOrEmpty(Model.ImagePath) ? null : siteUrl + Model.ImagePath;
+    // A photo in Supabase Storage already has a full URL; a local one is a path on this site.
+    var imageUrl = string.IsNullOrEmpty(Model.ImagePath) ? null
+        : Uri.IsWellFormedUriString(Model.ImagePath, UriKind.Absolute) ? Model.ImagePath : siteUrl + Model.ImagePath;
     ViewData["ImageUrl"] = imageUrl;
 }
 

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Models;
+using RecipeManager.Web.Photos;
 
 namespace RecipeManager.Web.MealDb;
 
@@ -13,20 +14,19 @@ public partial class MealImporter
     // TheMealDB has no cooking time or servings; the user corrects them right after the import.
     public const int DefaultCookingTimeMinutes = 30;
     public const int DefaultServings = 4;
-    private const string ImagePathPrefix = "/uploads/recipes/";
     private static readonly Dictionary<char, decimal> VulgarFractions = new()
     {
         ['¼'] = 0.25m, ['½'] = 0.5m, ['¾'] = 0.75m, ['⅓'] = 1m / 3, ['⅔'] = 2m / 3, ['⅛'] = 0.125m
     };
     private readonly ApplicationDbContext _context;
     private readonly TheMealDbClient _client;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IPhotoStorage _photos;
 
-    public MealImporter(ApplicationDbContext context, TheMealDbClient client, IWebHostEnvironment environment)
+    public MealImporter(ApplicationDbContext context, TheMealDbClient client, IPhotoStorage photos)
     {
         _context = context;
         _client = client;
-        _environment = environment;
+        _photos = photos;
     }
 
     // Returns null when TheMealDB has no meal with this id.
@@ -81,7 +81,7 @@ public partial class MealImporter
         }
         catch
         {
-            DeleteImage(recipe.ImagePath);
+            await _photos.DeleteAsync(recipe.ImagePath);
             throw;
         }
         return recipe;
@@ -123,30 +123,14 @@ public partial class MealImporter
     {
         var image = await _client.DownloadImageAsync(url, cancellationToken);
         if (image == null) return null;
-        var fileName = Guid.NewGuid().ToString("N") + image.Value.Extension;
-        var directory = Path.Combine(_environment.WebRootPath, "uploads", "recipes");
         try
         {
-            Directory.CreateDirectory(directory);
-            await File.WriteAllBytesAsync(Path.Combine(directory, fileName), image.Value.Content, cancellationToken);
-            return ImagePathPrefix + fileName;
+            return await _photos.SaveAsync(new MemoryStream(image.Value.Content), image.Value.Extension, cancellationToken);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (PhotoStorageException)
         {
             // A recipe without a photo is still worth importing.
             return null;
-        }
-    }
-
-    private void DeleteImage(string? imagePath)
-    {
-        if (imagePath == null) return;
-        try
-        {
-            File.Delete(Path.Combine(_environment.WebRootPath, "uploads", "recipes", imagePath[ImagePathPrefix.Length..]));
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
         }
     }
 

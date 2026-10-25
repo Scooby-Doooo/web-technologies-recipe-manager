@@ -7,6 +7,7 @@ using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
 using RecipeManager.Web.Models;
 using RecipeManager.Web.Models.Api;
+using RecipeManager.Web.Photos;
 
 namespace RecipeManager.Web.Controllers.Api;
 
@@ -17,18 +18,14 @@ namespace RecipeManager.Web.Controllers.Api;
 public class RecipesApiController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IWebHostEnvironment _environment;
-    private readonly ILogger<RecipesApiController> _logger;
-    private const string ImagePathPrefix = "/uploads/recipes/";
+    private readonly IPhotoStorage _photos;
     private const long MaximumImageSize = 5 * 1024 * 1024;
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
-    public RecipesApiController(ApplicationDbContext context, IWebHostEnvironment environment,
-        ILogger<RecipesApiController> logger)
+    public RecipesApiController(ApplicationDbContext context, IPhotoStorage photos)
     {
         _context = context;
-        _environment = environment;
-        _logger = logger;
+        _photos = photos;
     }
 
     [AllowAnonymous]
@@ -126,17 +123,14 @@ public class RecipesApiController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var imagePath = ImagePathPrefix + Guid.NewGuid().ToString("N") + extension;
+        string imagePath;
         try
         {
-            Directory.CreateDirectory(ImageDirectory);
-            await using var stream = new FileStream(Path.Combine(ImageDirectory,
-                imagePath[ImagePathPrefix.Length..]), FileMode.CreateNew);
-            await imageFile.CopyToAsync(stream);
+            await using var stream = imageFile.OpenReadStream();
+            imagePath = await _photos.SaveAsync(stream, extension);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (PhotoStorageException)
         {
-            DeleteLocalImage(imagePath);
             return Problem("Unable to save the recipe image.", statusCode: 500);
         }
 
@@ -148,10 +142,10 @@ public class RecipesApiController : ControllerBase
         }
         catch (DbUpdateException)
         {
-            DeleteLocalImage(imagePath);
+            await _photos.DeleteAsync(imagePath);
             return Problem("Unable to save the recipe.", statusCode: 500);
         }
-        DeleteLocalImage(oldImagePath);
+        await _photos.DeleteAsync(oldImagePath);
         return Ok(ToResponse(await RecipeQuery().FirstAsync(item => item.Id == id)));
     }
 
@@ -169,7 +163,7 @@ public class RecipesApiController : ControllerBase
         {
             return Problem("Unable to delete the recipe.", statusCode: 500);
         }
-        DeleteLocalImage(recipe.ImagePath);
+        await _photos.DeleteAsync(recipe.ImagePath);
         return NoContent();
     }
 
@@ -192,24 +186,5 @@ public class RecipesApiController : ControllerBase
         recipe.CookingTimeMinutes = request.CookingTimeMinutes;
         recipe.Servings = request.Servings;
         recipe.CategoryId = request.CategoryId;
-    }
-
-    private string ImageDirectory => Path.Combine(_environment.WebRootPath, "uploads", "recipes");
-
-    private void DeleteLocalImage(string? imagePath)
-    {
-        if (imagePath == null || !imagePath.StartsWith(ImagePathPrefix, StringComparison.Ordinal)) return;
-        var fileName = imagePath[ImagePathPrefix.Length..];
-        if (fileName.Contains('/') || fileName.Contains('\\') ||
-            !Guid.TryParseExact(Path.GetFileNameWithoutExtension(fileName), "N", out _) ||
-            !ImageExtensions.Contains(Path.GetExtension(fileName).ToLowerInvariant())) return;
-        try
-        {
-            System.IO.File.Delete(Path.Combine(ImageDirectory, fileName));
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            _logger.LogWarning("Unable to remove a local recipe image; manual cleanup may be needed.");
-        }
     }
 }
