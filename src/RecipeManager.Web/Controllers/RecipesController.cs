@@ -80,7 +80,7 @@ public class RecipesController : Controller
         // LIKE is parameterized; escape its wildcard characters so input remains literal.
         var pattern = "%" + term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
         var matches = await _context.Categories.AsNoTracking()
-            .Where(category => EF.Functions.Like(category.Name, pattern, "\\"))
+            .Where(category => EF.Functions.ILike(category.Name, pattern, "\\"))
             .OrderBy(category => category.Name).ThenBy(category => category.Id)
             .Skip((page - 1) * pageSize).Take(pageSize + 1)
             .Select(category => new { id = category.Id, text = category.Name })

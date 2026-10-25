@@ -15,15 +15,14 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 
-# SQLite database and uploaded photos live in directories that compose mounts as volumes.
-RUN mkdir -p /app/data /app/wwwroot/uploads/recipes \
-    && chown -R $APP_UID /app/data /app/wwwroot/uploads
+# Uploaded photos live in a directory that compose mounts as a volume. The database is PostgreSQL:
+# the db service of compose, or Supabase in the cloud, given by ConnectionStrings__DefaultConnection.
+RUN mkdir -p /app/wwwroot/uploads/recipes \
+    && chown -R $APP_UID /app/wwwroot/uploads
 USER $APP_UID
 
 ENV ASPNETCORE_HTTP_PORTS=8080 \
-    ConnectionStrings__DefaultConnection="Data Source=/app/data/recipe-manager.db" \
-    Database__MigrateOnStartup=true \
-    DataProtection__KeysPath=/app/data/keys
+    Database__MigrateOnStartup=true
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "RecipeManager.Web.dll"]

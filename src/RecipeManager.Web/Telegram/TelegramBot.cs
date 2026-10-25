@@ -102,7 +102,7 @@ public class TelegramBot
 
         var pattern = "%" + query.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
         var matches = await _context.Recipes.AsNoTracking()
-            .Where(item => EF.Functions.Like(item.Title, pattern, "\\"))
+            .Where(item => EF.Functions.ILike(item.Title, pattern, "\\"))
             .OrderBy(item => item.Title).Select(item => new { item.Id, item.Title }).Take(10).ToListAsync();
         return matches.Count switch
         {

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FeatureManagement;
+using Npgsql;
 using RecipeManager.Web.Assistant;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
@@ -24,10 +25,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
-// Antiforgery cookies are encrypted with these keys; in a container they must outlive the container.
-var keysPath = builder.Configuration["DataProtection:KeysPath"];
-if (!string.IsNullOrEmpty(keysPath))
-    builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+// Sign-in and antiforgery cookies are encrypted with these keys. They live in the database, so
+// they outlive a container whose disk is wiped on every deploy (Render).
+builder.Services.AddDataProtection().PersistKeysToDbContext<ApplicationDbContext>();
 
 // Browsers use the cookie from the Google sign-in; API clients such as the MCP server
 // send a bearer token issued on the account page. The policy scheme picks one per request.
@@ -126,7 +126,10 @@ builder.Services.AddScoped<KitchenFeedInterceptor>();
 
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((services, options) => options
-    .UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
+    // GSSAPI (Kerberos) is not used, and its native library is not in the ASP.NET image; without this
+    // Npgsql tries it on every new connection and logs an error.
+    .UseNpgsql(new NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("DefaultConnection"))
+        { GssEncryptionMode = GssEncryptionMode.Disable }.ConnectionString)
     .AddInterceptors(services.GetRequiredService<OutputCacheInvalidationInterceptor>(),
         services.GetRequiredService<RecipeCreatedNotifier>(), services.GetRequiredService<KitchenFeedInterceptor>()));
 

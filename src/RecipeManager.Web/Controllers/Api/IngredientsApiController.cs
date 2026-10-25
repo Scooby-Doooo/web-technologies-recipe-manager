@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Data;
 using RecipeManager.Web.Models;
@@ -103,8 +103,8 @@ public class IngredientsApiController : ControllerBase
         {
             await _context.SaveChangesAsync();
         }
-        // SQLite 787 is SQLITE_CONSTRAINT_FOREIGNKEY; a reference may appear after the check.
-        catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteExtendedErrorCode: 787 })
+        // A reference may appear after the check; PostgreSQL then reports a foreign key violation.
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
         {
             return Conflict(new ProblemDetails { Status = 409, Title = "This ingredient is in use and cannot be deleted." });
         }

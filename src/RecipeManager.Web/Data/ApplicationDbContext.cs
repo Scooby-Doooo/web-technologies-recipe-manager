@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : DbContext, IDataProtectionKeyContext
 {
     private readonly TenantContext _tenant;
 
@@ -25,6 +26,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TelegramChat> TelegramChats { get; set; }
     public DbSet<TelegramLinkCode> TelegramLinkCodes { get; set; }
     public DbSet<RecipeNotes> RecipeNotes { get; set; }
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -83,7 +85,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TelegramChat>().HasQueryFilter(item => item.TenantId == CurrentTenantId);
 
         modelBuilder.Entity<TelegramChat>().HasIndex(item => item.ChatId).IsUnique();
-        // SQLite allows many NULLs in a unique index, so recipes typed by hand are not affected.
+        // PostgreSQL allows many NULLs in a unique index, so recipes typed by hand are not affected.
         modelBuilder.Entity<Recipe>().HasIndex(item => new { item.TenantId, item.MealDbId }).IsUnique();
         modelBuilder.Entity<TelegramChat>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TelegramLinkCode>().HasOne<Tenant>().WithMany().HasForeignKey(item => item.TenantId).OnDelete(DeleteBehavior.Cascade);

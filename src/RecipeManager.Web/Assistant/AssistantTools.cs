@@ -89,9 +89,9 @@ public class AssistantTools
     {
         var recipes = _context.Recipes.AsNoTracking().AsQueryable();
         if (Text(arguments, "query") is { Length: > 0 } query)
-            recipes = recipes.Where(item => EF.Functions.Like(item.Title, "%" + Escape(query) + "%", "\\"));
+            recipes = recipes.Where(item => EF.Functions.ILike(item.Title, "%" + Escape(query) + "%", "\\"));
         if (Text(arguments, "category") is { Length: > 0 } category)
-            recipes = recipes.Where(item => EF.Functions.Like(item.Category.Name, Escape(category), "\\"));
+            recipes = recipes.Where(item => EF.Functions.ILike(item.Category.Name, Escape(category), "\\"));
         if (Int(arguments, "max_cooking_minutes") is { } minutes)
             recipes = recipes.Where(item => item.CookingTimeMinutes <= minutes);
         var found = await recipes.OrderBy(item => item.Title).Take(20)
