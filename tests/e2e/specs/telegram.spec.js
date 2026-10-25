@@ -5,12 +5,14 @@ import { test, expect, startExtraServer } from '../fixtures.js';
 async function fakeTelegram() {
     const updates = [];
     const sent = [];
+    const methods = [];
     let nextUpdateId = 1;
     const server = createServer((request, response) => {
         let body = '';
         request.on('data', chunk => { body += chunk; });
         request.on('end', () => {
             const method = request.url.split('/').at(-1);
+            methods.push(method);
             const reply = result => {
                 response.writeHead(200, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ ok: true, result }));
@@ -18,6 +20,10 @@ async function fakeTelegram() {
             if (!request.url.startsWith('/bottest-token/')) {
                 response.writeHead(401, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ ok: false, description: 'Unauthorized' }));
+            } else if (method === 'setWebhook' && JSON.parse(body).url.includes('unknown-host')) {
+                // What Telegram says when it cannot reach the webhook address.
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, description: 'Bad Request: bad webhook: Failed to resolve host' }));
             } else if (method === 'getMe') reply({ id: 1, is_bot: true, username: 'qa_test_bot' });
             else if (method === 'sendMessage') { sent.push(JSON.parse(body)); reply({ message_id: sent.length }); }
             else if (method === 'getUpdates') {
@@ -31,6 +37,7 @@ async function fakeTelegram() {
     return {
         url: `http://127.0.0.1:${server.address().port}`,
         sent,
+        methods,
         send: (chatId, text) => updates.push({ update_id: nextUpdateId++,
             message: { message_id: nextUpdateId, chat: { id: chatId, type: 'private', first_name: `QA chat ${chatId}` }, text } }),
         close: () => new Promise(resolve => server.close(resolve))
@@ -120,6 +127,29 @@ test('[TG-01] the bot links a chat to a kitchen, answers commands and announces 
     } finally {
         await alice.client.dispose();
         await bob.client.dispose();
+        await server.close();
+        await telegram.close();
+    }
+});
+
+test('[TG-02] a webhook address Telegram refuses does not stop the site', async ({ app, playwright }) => {
+    const telegram = await fakeTelegram();
+    const server = await startExtraServer(app.directory, 'telegram-webhook', 'Development', {
+        Authentication__EnableTestSignIn: 'true',
+        Telegram__BotToken: 'test-token',
+        Telegram__ApiBaseUrl: telegram.url,
+        Telegram__WebhookUrl: 'https://unknown-host.example/telegram/webhook',
+        Telegram__WebhookSecret: 'qa-webhook-secret'
+    });
+    const alice = await signedInClient(playwright, server.baseURL, `qa2-tg-hook-${Date.now()}@example.test`);
+    try {
+        await expect.poll(() => telegram.methods.includes('setWebhook'), { message: 'The bot tries to set the webhook' }).toBe(true);
+        // The host used to stop right after the refusal.
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        expect((await alice.client.get('/Recipes')).status()).toBe(200);
+        await alice.createRecipe('QA2 webhook still alive');
+    } finally {
+        await alice.client.dispose();
         await server.close();
         await telegram.close();
     }

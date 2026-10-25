@@ -41,7 +41,15 @@ public class TelegramService : BackgroundService
 
         if (!string.IsNullOrWhiteSpace(_options.WebhookUrl))
         {
-            await _client.SetWebhookAsync(_options.WebhookUrl, _options.WebhookSecret, stoppingToken);
+            try
+            {
+                await _client.SetWebhookAsync(_options.WebhookUrl, _options.WebhookSecret, stoppingToken);
+            }
+            catch (Exception exception) when (exception is TelegramException or HttpRequestException)
+            {
+                // A wrong address must not stop the web app either: the bot gets no messages, but notifications still go out.
+                _logger.LogError("Telegram webhook is not set: {Reason}", exception.Message);
+            }
             await SendNotificationsAsync(stoppingToken);
         }
         else
