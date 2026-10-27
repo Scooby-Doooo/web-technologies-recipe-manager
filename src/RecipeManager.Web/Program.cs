@@ -19,6 +19,7 @@ using RecipeManager.Web.Features;
 using RecipeManager.Web.Live;
 using RecipeManager.Web.MealDb;
 using RecipeManager.Web.Photos;
+using RecipeManager.Web.Search;
 using RecipeManager.Web.Telegram;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -132,6 +133,10 @@ builder.Services.AddSingleton<KitchenFeed>();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 512 * 1024);
 builder.Services.AddScoped<KitchenFeedInterceptor>();
 
+// Full-text recipe search with Lucene.NET (B4): an in-memory index rebuilt per kitchen after changes.
+builder.Services.AddSingleton<RecipeSearchIndex>();
+builder.Services.AddScoped<RecipeSearchInterceptor>();
+
 builder.Services.AddScoped<OutputCacheInvalidationInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((services, options) => options
     // GSSAPI (Kerberos) is not used, and its native library is not in the ASP.NET image; without this
@@ -139,7 +144,8 @@ builder.Services.AddDbContext<ApplicationDbContext>((services, options) => optio
     .UseNpgsql(new NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("DefaultConnection"))
         { GssEncryptionMode = GssEncryptionMode.Disable }.ConnectionString)
     .AddInterceptors(services.GetRequiredService<OutputCacheInvalidationInterceptor>(),
-        services.GetRequiredService<RecipeCreatedNotifier>(), services.GetRequiredService<KitchenFeedInterceptor>()));
+        services.GetRequiredService<RecipeCreatedNotifier>(), services.GetRequiredService<KitchenFeedInterceptor>(),
+        services.GetRequiredService<RecipeSearchInterceptor>()));
 
 // GET responses of the JSON API are kept in memory; saves evict them by tag.
 var apiCacheDuration = TimeSpan.FromSeconds(builder.Configuration.GetValue("ApiCache:DurationSeconds", 60));

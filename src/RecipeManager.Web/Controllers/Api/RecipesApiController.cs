@@ -7,7 +7,10 @@ using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
 using RecipeManager.Web.Models;
 using RecipeManager.Web.Models.Api;
+using Lucene.Net.QueryParsers.Classic;
+using Lucene.Net.Search;
 using RecipeManager.Web.Photos;
+using RecipeManager.Web.Search;
 
 namespace RecipeManager.Web.Controllers.Api;
 
@@ -47,6 +50,35 @@ public class RecipesApiController : ControllerBase
             ? Url.Action(nameof(GetAll), new { skip = (long)skip + limit, limit })
             : null;
         return Ok(new PageResponse<RecipeResponse>(recipes.Select(ToResponse).ToList(), skip, limit, nextLink));
+    }
+
+    // B4: full-text search with Lucene query syntax over title, ingredients, category, description
+    // and instructions, best match first. Words are joined with AND unless the query says otherwise.
+    [AllowAnonymous]
+    [HttpGet("search")]
+    [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.RecipesTag)]
+    public async Task<IActionResult> Search(
+        [FromServices] RecipeSearchIndex index,
+        [FromServices] TenantContext tenant,
+        [FromQuery, Required, StringLength(200)] string q,
+        [FromQuery, Range(1, int.MaxValue)] int? maxMinutes = null,
+        [FromQuery, Range(0, 1000)] int skip = 0,
+        [FromQuery, Range(1, 100)] int limit = 20)
+    {
+        SearchResult result;
+        try
+        {
+            result = await index.SearchAsync(_context, tenant.TenantId, q, maxMinutes, skip, limit, HttpContext.RequestAborted);
+        }
+        catch (Exception exception) when (exception is ParseException or BooleanQuery.TooManyClausesException)
+        {
+            ModelState.AddModelError(nameof(q), "The search query is not valid: " + exception.Message);
+            return ValidationProblem(ModelState);
+        }
+        var nextLink = skip + limit < result.Total
+            ? Url.Action(nameof(Search), new { q, maxMinutes, skip = skip + limit, limit })
+            : null;
+        return Ok(new SearchResponse(q, result.Total, result.Hits, skip, limit, nextLink));
     }
 
     [AllowAnonymous]
