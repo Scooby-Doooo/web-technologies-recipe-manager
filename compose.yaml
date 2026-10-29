@@ -16,6 +16,23 @@ services:
       retries: 15
     restart: unless-stopped
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: recipe_manager
+      RABBITMQ_DEFAULT_PASS: recipe_manager
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - recipe-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+    restart: unless-stopped
+
   web:
     build: .
     image: recipe-manager:latest
@@ -24,8 +41,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=recipe_manager;Username=recipe_manager;Password=recipe_manager
+      RabbitMq__Url: amqp://recipe_manager:recipe_manager@rabbitmq:5672
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     volumes:
       - recipe-uploads:/app/wwwroot/uploads
@@ -33,4 +53,5 @@ services:
 
 volumes:
   recipe-db:
+  recipe-rabbitmq:
   recipe-uploads:

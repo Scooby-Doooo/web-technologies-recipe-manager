@@ -115,7 +115,8 @@ public class TelegramService : BackgroundService
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 
-    private async Task NotifyAsync(RecipeCreated created, CancellationToken cancellationToken)
+    // Also used by the RabbitMQ consumer (B8), which retries a failed announcement.
+    public async Task NotifyAsync(RecipeCreated created, CancellationToken cancellationToken)
     {
         using var scope = _scopes.CreateScope();
         scope.ServiceProvider.GetRequiredService<TenantContext>().UseTenant(created.TenantId);

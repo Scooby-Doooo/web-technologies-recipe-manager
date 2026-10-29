@@ -18,6 +18,7 @@ using RecipeManager.Web.Data;
 using RecipeManager.Web.Features;
 using RecipeManager.Web.Live;
 using RecipeManager.Web.MealDb;
+using RecipeManager.Web.Messaging;
 using RecipeManager.Web.Photos;
 using RecipeManager.Web.Search;
 using RecipeManager.Web.Telegram;
@@ -113,6 +114,18 @@ builder.Services.AddScoped<TelegramBot>();
 builder.Services.AddSingleton<TelegramService>();
 if (telegram.Enabled)
     builder.Services.AddHostedService(services => services.GetRequiredService<TelegramService>());
+
+// New-recipe announcements go through RabbitMQ when RabbitMq:Url is set (B8): durable, retried
+// after a delay and parked in a failed queue at the end. Otherwise an in-memory queue is used.
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
+if (builder.Configuration.GetSection("RabbitMq").Get<RabbitMqOptions>()?.Enabled == true)
+{
+    builder.Services.AddSingleton<RabbitMqBus>();
+    builder.Services.AddSingleton<IRecipeCreatedPublisher, RabbitMqRecipeCreatedPublisher>();
+    if (telegram.Enabled) builder.Services.AddHostedService<TelegramQueueConsumer>();
+}
+else
+    builder.Services.AddSingleton<IRecipeCreatedPublisher, ChannelRecipeCreatedPublisher>();
 
 // Recipe photos (C19): Supabase Storage when its URL and secret key are set, else wwwroot/uploads.
 builder.Services.Configure<SupabaseStorageOptions>(builder.Configuration.GetSection("Supabase"));

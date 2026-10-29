@@ -1,7 +1,7 @@
-using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
+using RecipeManager.Web.Messaging;
 using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Telegram;
@@ -9,17 +9,17 @@ namespace RecipeManager.Web.Telegram;
 public record RecipeCreated(int RecipeId, int TenantId);
 
 // Sees every saved recipe, whether it came from an MVC form, the API, the MCP server or the
-// AI agent, and queues a Telegram notification. Sending happens in TelegramService, so a slow
-// or failing Telegram never delays or breaks the save itself.
+// AI agent, and queues a Telegram notification (in memory or in RabbitMQ, B8). Sending happens
+// in the background, so a slow or failing Telegram never delays or breaks the save itself.
 public class RecipeCreatedNotifier : SaveChangesInterceptor
 {
-    private readonly Channel<RecipeCreated> _queue;
+    private readonly IRecipeCreatedPublisher _publisher;
     private readonly bool _enabled;
     private readonly List<Recipe> _added = [];
 
-    public RecipeCreatedNotifier(Channel<RecipeCreated> queue, IOptions<TelegramOptions> options)
+    public RecipeCreatedNotifier(IRecipeCreatedPublisher publisher, IOptions<TelegramOptions> options)
     {
-        _queue = queue;
+        _publisher = publisher;
         _enabled = options.Value.Enabled;
     }
 
@@ -32,13 +32,14 @@ public class RecipeCreatedNotifier : SaveChangesInterceptor
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
-    public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
+    public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
         CancellationToken cancellationToken = default)
     {
         // Ids exist only after the insert.
-        foreach (var recipe in _added) _queue.Writer.TryWrite(new RecipeCreated(recipe.Id, recipe.TenantId));
+        var added = _added.ToList();
         _added.Clear();
-        return base.SavedChangesAsync(eventData, result, cancellationToken);
+        foreach (var recipe in added) await _publisher.PublishAsync(new RecipeCreated(recipe.Id, recipe.TenantId));
+        return await base.SavedChangesAsync(eventData, result, cancellationToken);
     }
 
     public override Task SaveChangesFailedAsync(DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
