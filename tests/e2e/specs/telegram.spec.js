@@ -1,11 +1,12 @@
 import { createServer } from 'node:http';
-import { test, expect, startExtraServer } from '../fixtures.js';
+import { test, expect, startExtraServer, createVhost } from '../fixtures.js';
 
 // A stand-in for api.telegram.org: it hands queued updates to getUpdates and records sendMessage.
 async function fakeTelegram() {
     const updates = [];
     const sent = [];
     const methods = [];
+    const state = { failNext: 0, failed: 0 };
     let nextUpdateId = 1;
     const server = createServer((request, response) => {
         let body = '';
@@ -25,6 +26,13 @@ async function fakeTelegram() {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ ok: false, description: 'Bad Request: bad webhook: Failed to resolve host' }));
             } else if (method === 'getMe') reply({ id: 1, is_bot: true, username: 'qa_test_bot' });
+            else if (method === 'sendMessage' && state.failNext > 0) {
+                // A Telegram outage for the next failNext messages.
+                state.failNext--;
+                state.failed++;
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, description: 'Internal Server Error' }));
+            }
             else if (method === 'sendMessage') { sent.push(JSON.parse(body)); reply({ message_id: sent.length }); }
             else if (method === 'getUpdates') {
                 // Long polling: answer at once when something is queued, otherwise after a short wait.
@@ -38,6 +46,7 @@ async function fakeTelegram() {
         url: `http://127.0.0.1:${server.address().port}`,
         sent,
         methods,
+        state,
         send: (chatId, text) => updates.push({ update_id: nextUpdateId++,
             message: { message_id: nextUpdateId, chat: { id: chatId, type: 'private', first_name: `QA chat ${chatId}` }, text } }),
         close: () => new Promise(resolve => server.close(resolve))
@@ -152,5 +161,56 @@ test('[TG-02] a webhook address Telegram refuses does not stop the site', async 
         await alice.client.dispose();
         await server.close();
         await telegram.close();
+    }
+});
+
+test('[B8-01] announcements go through RabbitMQ, are retried after a failure and parked when Telegram keeps failing', async ({ app, playwright }) => {
+    const telegram = await fakeTelegram();
+    const rabbit = await createVhost('b8');
+    const server = await startExtraServer(app.directory, 'rabbitmq', 'Development', {
+        Authentication__EnableTestSignIn: 'true',
+        Telegram__BotToken: 'test-token',
+        Telegram__ApiBaseUrl: telegram.url,
+        RabbitMq__Url: rabbit.url,
+        RabbitMq__RetryDelayMilliseconds: '500',
+        RabbitMq__MaxAttempts: '3'
+    });
+    const alice = await signedInClient(playwright, server.baseURL, `qa2-b8-${Date.now()}@example.test`);
+    const announcements = () => telegram.sent.filter(message => message.text.startsWith('New recipe:'));
+    const queues = async () => ({
+        main: await rabbit.messages('telegram-notifications'),
+        retry: await rabbit.messages('telegram-notifications.retry'),
+        failed: await rabbit.messages('telegram-notifications.failed')
+    });
+    try {
+        const connect = await alice.client.post('/Account/ConnectTelegram',
+            { form: { __RequestVerificationToken: await alice.formToken() }, maxRedirects: 0 });
+        telegram.send(333, `/start ${new URL(connect.headers().location).searchParams.get('start')}`);
+        await expect.poll(() => telegram.sent.some(message => message.chat_id === 333 && message.text.includes('now linked'))).toBe(true);
+        // The consumer declared the queues on start.
+        await expect.poll(queues, { timeout: 20_000 }).toEqual({ main: 0, retry: 0, failed: 0 });
+
+        // Telegram fails twice: the message waits in the retry queue twice and the third attempt is delivered.
+        telegram.state.failNext = 2;
+        await alice.createRecipe('QA2 queued soup');
+        await expect.poll(() => announcements().length, { timeout: 15_000 }).toBe(1);
+        expect(announcements()[0]).toMatchObject({ chat_id: 333 });
+        expect(announcements()[0].text).toContain('QA2 queued soup');
+        expect(telegram.state.failed).toBe(2);
+        await expect.poll(queues, { timeout: 20_000, message: 'Nothing is left in the queues' }).toEqual({ main: 0, retry: 0, failed: 0 });
+
+        // Telegram keeps failing: after MaxAttempts the message is parked in the failed queue.
+        telegram.state.failNext = Infinity;
+        await alice.createRecipe('QA2 parked soup');
+        await expect.poll(queues, { timeout: 20_000 }).toEqual({ main: 0, retry: 0, failed: 1 });
+        expect(telegram.state.failed).toBe(2 + 3);
+        expect(announcements()).toHaveLength(1);
+        // The save itself never waited for Telegram: the site works throughout.
+        expect((await alice.client.get('/Recipes')).status()).toBe(200);
+    } finally {
+        await alice.client.dispose();
+        await server.close();
+        await telegram.close();
+        await rabbit.drop();
     }
 });

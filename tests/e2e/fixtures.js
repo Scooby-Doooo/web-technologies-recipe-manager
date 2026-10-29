@@ -75,6 +75,44 @@ export async function createDatabase(name) {
     };
 }
 
+// B8 tests get an own RabbitMQ virtual host in a container kept between runs, like PostgreSQL above.
+const rabbit = { container: 'recipe-manager-e2e-rabbitmq', host: '127.0.0.1', port: 55672, management: 55673, user: 'e2e', password: 'e2e' };
+const rabbitApi = (method, apiPath, body) => fetch(`http://${rabbit.host}:${rabbit.management}/api/${apiPath}`, {
+    method, body: body && JSON.stringify(body),
+    headers: { Authorization: 'Basic ' + Buffer.from(`${rabbit.user}:${rabbit.password}`).toString('base64'), 'Content-Type': 'application/json' }
+});
+
+async function ensureRabbit() {
+    const running = spawnSync('docker', ['inspect', '-f', '{{.State.Running}}', rabbit.container], { encoding: 'utf8', windowsHide: true });
+    if (running.stdout.trim() !== 'true') {
+        spawnSync('docker', ['rm', '-f', rabbit.container], { windowsHide: true });
+        const started = spawnSync('docker', ['run', '-d', '--name', rabbit.container,
+            '-e', `RABBITMQ_DEFAULT_USER=${rabbit.user}`, '-e', `RABBITMQ_DEFAULT_PASS=${rabbit.password}`,
+            '-p', `${rabbit.host}:${rabbit.port}:5672`, '-p', `${rabbit.host}:${rabbit.management}:15672`,
+            'rabbitmq:4-management-alpine'], { encoding: 'utf8', windowsHide: true });
+        if (started.status !== 0) throw new Error(`Docker could not start the test RabbitMQ.\n${started.stderr}`);
+    }
+    await expect.poll(async () => { try { return (await rabbitApi('GET', 'overview')).status; } catch { return 0; } },
+        { timeout: 60_000, message: 'Test RabbitMQ answers' }).toBe(200);
+}
+
+export async function createVhost(name) {
+    await ensureRabbit();
+    const vhost = `qa_${name}_${process.pid}_${Date.now()}`;
+    const encoded = encodeURIComponent(vhost);
+    expect((await rabbitApi('PUT', `vhosts/${encoded}`)).ok).toBe(true);
+    expect((await rabbitApi('PUT', `permissions/${encoded}/${rabbit.user}`, { configure: '.*', write: '.*', read: '.*' })).ok).toBe(true);
+    return {
+        url: `amqp://${rabbit.user}:${rabbit.password}@${rabbit.host}:${rabbit.port}/${encoded}`,
+        // Ready plus unacknowledged messages of a queue, or null before the app declared it.
+        messages: async queue => {
+            const response = await rabbitApi('GET', `queues/${encoded}/${encodeURIComponent(queue)}`);
+            return response.ok ? (await response.json()).messages ?? 0 : null;
+        },
+        drop: () => rabbitApi('DELETE', `vhosts/${encoded}`)
+    };
+}
+
 async function stop(child) {
     if (!child || child.exitCode !== null) return;
     const closed = new Promise(resolve => child.once('close', resolve));
@@ -95,6 +133,7 @@ export async function startExtraServer(directory, name, environment, settings = 
         Authentication__Google__ClientId: '',
         Telegram__BotToken: '',
         OpenRouter__ApiKey: '',
+        RabbitMq__Url: '',
         // Nothing listens on port 9, so an extra server never reaches the real TheMealDB.
         TheMealDb__ApiBaseUrl: 'http://127.0.0.1:9/',
         Logging__LogLevel__Default: 'Warning', ...settings };
@@ -149,6 +188,7 @@ export const test = base.extend({
                 Authentication__Google__ClientId: '',
                 Telegram__BotToken: '',
                 OpenRouter__ApiKey: '',
+                RabbitMq__Url: '',
                 TheMealDb__ApiBaseUrl: mealDb.url,
                 // Short long-poll answers keep the C10 tests fast.
                 Live__LongPollSeconds: '2',
