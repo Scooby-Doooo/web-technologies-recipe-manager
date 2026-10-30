@@ -243,7 +243,7 @@ body {
   border-radius: 0.25rem;
 }
 
-/* Another device is in this block (C14). */
+/* Another device is in this block. */
 .notes-peer {
   box-shadow: inset 0 0 0 2px #e0a526;
 }

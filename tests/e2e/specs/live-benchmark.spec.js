@@ -5,7 +5,7 @@ import { connect } from 'node:net';
 import { test, expect, startExtraServer } from '../fixtures.js';
 import { kitchenUser } from '../helpers.js';
 
-// C10 comparison. Not part of the normal run: LIVE_BENCHMARK=1 npm test -- specs/live-benchmark.spec.js
+// Transport comparison, not part of the normal run: LIVE_BENCHMARK=1 npm test -- specs/live-benchmark.spec.js
 // The clients below behave like live.js but count every byte on the wire: request line and
 // headers (with the real sign-in cookie), response headers and body, WebSocket handshake and frames.
 test.skip(!process.env.LIVE_BENCHMARK, 'Set LIVE_BENCHMARK=1 to run the transport comparison.');

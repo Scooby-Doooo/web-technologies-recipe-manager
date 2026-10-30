@@ -6,7 +6,7 @@ import { useAccount } from '../Layout.jsx';
 const empty = { title: '', description: '', instructions: '', cookingTimeMinutes: '', servings: '', categoryId: '' };
 const ImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
-// Create and edit. The server validates again; its field errors are shown next to the fields.
+// Used for both create and edit.
 export default function RecipeForm() {
     const { id } = useParams();
     const account = useAccount();

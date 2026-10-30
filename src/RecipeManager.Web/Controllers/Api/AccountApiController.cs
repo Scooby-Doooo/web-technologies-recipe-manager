@@ -3,8 +3,7 @@ using RecipeManager.Web.Data;
 
 namespace RecipeManager.Web.Controllers.Api;
 
-// Tells a separate front end (the F5 SPA) who is signed in. Anonymous visitors get signedIn: false
-// instead of 401, because for them the answer is normal, not an error.
+// Who is signed in, for the SPA. Anonymous visitors get signedIn: false instead of 401.
 [ApiController]
 [Route("api/account")]
 public class AccountApiController : ControllerBase

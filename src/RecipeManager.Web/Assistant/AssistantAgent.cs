@@ -6,9 +6,8 @@ namespace RecipeManager.Web.Assistant;
 
 public record AssistantMessage(string Role, string Content);
 
-// The agent loop: stream the model's answer; when it asks for tools, run them, add the results
-// to the conversation and ask again. Every step is reported through `emit` as it happens,
-// which the controller turns into Server-Sent Events.
+// Streams the model's answer; when it asks for tools, runs them and asks again with the results.
+// Every step goes to `emit`, which the controller sends as Server-Sent Events.
 public class AssistantAgent
 {
     private const int MaxToolRounds = 5;

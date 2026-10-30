@@ -47,7 +47,7 @@ public class TelegramService : BackgroundService
             }
             catch (Exception exception) when (exception is TelegramException or HttpRequestException)
             {
-                // A wrong address must not stop the web app either: the bot gets no messages, but notifications still go out.
+                // Same for a bad webhook address: no incoming messages, but announcements still go out.
                 _logger.LogError("Telegram webhook is not set: {Reason}", exception.Message);
             }
             await SendNotificationsAsync(stoppingToken);
@@ -115,7 +115,7 @@ public class TelegramService : BackgroundService
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 
-    // Also used by the RabbitMQ consumer (B8), which retries a failed announcement.
+    // Also used by the RabbitMQ consumer.
     public async Task NotifyAsync(RecipeCreated created, CancellationToken cancellationToken)
     {
         using var scope = _scopes.CreateScope();

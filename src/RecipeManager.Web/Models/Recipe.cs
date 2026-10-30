@@ -31,7 +31,7 @@ public class Recipe : ITenantOwned
 
     public string? ImagePath { get; set; }
 
-    // Id of the meal on TheMealDB for imported recipes (C8), so a meal is imported once per kitchen.
+    // TheMealDB id of an imported recipe, so a meal is imported once per kitchen.
     [ValidateNever]
     public int? MealDbId { get; set; }
 

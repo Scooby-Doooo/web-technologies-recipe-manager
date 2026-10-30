@@ -74,7 +74,7 @@ public class RecipesController : Controller
         if (term.Length < 3)
             return Json(new { results = Array.Empty<object>(), pagination = new { more = false } });
 
-        // LIKE is parameterized; escape its wildcard characters so input remains literal.
+        // Escape the LIKE wildcards so the input is matched as plain text.
         var pattern = "%" + term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
         var matches = await _context.Categories.AsNoTracking()
             .Where(category => EF.Functions.ILike(category.Name, pattern, "\\"))
@@ -122,7 +122,7 @@ public class RecipesController : Controller
         return View(recipe);
     }
 
-    // Block editor for free-form notes on a recipe (C12).
+    // Notes editor page.
     public async Task<IActionResult> Notes(int? id)
     {
         if (id == null) return NotFound();

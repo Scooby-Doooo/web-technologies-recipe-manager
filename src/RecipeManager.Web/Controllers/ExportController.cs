@@ -11,8 +11,7 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Controllers;
 
-// The Premium-only page: a kitchen downloads all its recipes. Without the flag every action
-// answers with the "Premium feature" page (403) from the disabled-features handler.
+// Premium only: on Free every action returns the "Premium feature" page (403).
 [Authorize]
 [FeatureGate(FeatureFlags.RecipeExport)]
 public class ExportController : Controller

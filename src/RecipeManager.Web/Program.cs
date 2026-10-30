@@ -98,13 +98,13 @@ if (!string.IsNullOrEmpty(google["ClientId"]))
     });
 }
 
-// AI assistant (C21). The OpenRouter key comes from user secrets or environment variables.
+// AI assistant. The OpenRouter key comes from user secrets or environment variables.
 builder.Services.Configure<OpenRouterOptions>(builder.Configuration.GetSection("OpenRouter"));
 builder.Services.AddHttpClient<OpenRouterClient>();
 builder.Services.AddScoped<AssistantTools>();
 builder.Services.AddScoped<AssistantAgent>();
 
-// Telegram bot (B2). Without Telegram:BotToken nothing below starts and notifications are skipped.
+// Telegram bot. Without Telegram:BotToken it does not start.
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
 var telegram = builder.Configuration.GetSection("Telegram").Get<TelegramOptions>() ?? new TelegramOptions();
 builder.Services.AddSingleton(Channel.CreateBounded<RecipeCreated>(new BoundedChannelOptions(1000) { FullMode = BoundedChannelFullMode.DropOldest }));
@@ -115,8 +115,7 @@ builder.Services.AddSingleton<TelegramService>();
 if (telegram.Enabled)
     builder.Services.AddHostedService(services => services.GetRequiredService<TelegramService>());
 
-// New-recipe announcements go through RabbitMQ when RabbitMq:Url is set (B8): durable, retried
-// after a delay and parked in a failed queue at the end. Otherwise an in-memory queue is used.
+// Announcements go through RabbitMQ when RabbitMq:Url is set, otherwise through an in-memory queue.
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMq"));
 if (builder.Configuration.GetSection("RabbitMq").Get<RabbitMqOptions>()?.Enabled == true)
 {
@@ -127,26 +126,26 @@ if (builder.Configuration.GetSection("RabbitMq").Get<RabbitMqOptions>()?.Enabled
 else
     builder.Services.AddSingleton<IRecipeCreatedPublisher, ChannelRecipeCreatedPublisher>();
 
-// Recipe photos (C19): Supabase Storage when its URL and secret key are set, else wwwroot/uploads.
+// Photos: Supabase Storage when its URL and key are set, otherwise wwwroot/uploads.
 builder.Services.Configure<SupabaseStorageOptions>(builder.Configuration.GetSection("Supabase"));
 if (builder.Configuration.GetSection("Supabase").Get<SupabaseStorageOptions>()?.Enabled == true)
     builder.Services.AddHttpClient<IPhotoStorage, SupabasePhotoStorage>();
 else
     builder.Services.AddSingleton<IPhotoStorage, LocalPhotoStorage>();
 
-// Recipe import from TheMealDB (C8). Its free test key needs no secret.
+// TheMealDB import. Its free test key is not a secret.
 builder.Services.AddMemoryCache();
 builder.Services.Configure<TheMealDbOptions>(builder.Configuration.GetSection("TheMealDb"));
 builder.Services.AddHttpClient<TheMealDbClient>();
 builder.Services.AddScoped<MealImporter>();
 
-// Live feed of recipe changes (C10).
+// Live feed of recipe changes.
 builder.Services.AddSingleton<KitchenFeed>();
 // Notes changes carry whole blocks (NotesChange.MaxText characters each), more than the default 32 KB.
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 512 * 1024);
 builder.Services.AddScoped<KitchenFeedInterceptor>();
 
-// Full-text recipe search with Lucene.NET (B4): an in-memory index rebuilt per kitchen after changes.
+// Lucene.NET search index, kept in memory.
 builder.Services.AddSingleton<RecipeSearchIndex>();
 builder.Services.AddScoped<RecipeSearchInterceptor>();
 
@@ -214,10 +213,9 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllers();
-// F5: the React SPA (src/RecipeManager.Spa) is built into wwwroot/spa. Its own router handles
-// /spa/recipes/12 and the like, so every such path that is not a file gets its index.html.
+// The React SPA is built into wwwroot/spa; its router handles the other /spa paths.
 app.MapFallbackToFile("/spa/{*path:nonfile}", "spa/index.html");
-// SignalR version of the live feed (C11). Its WebSocket transport needs the same Origin check as C10.
+// The SignalR WebSocket needs the same Origin check as the live feed socket.
 app.UseWhen(context => context.Request.Path.StartsWithSegments("/hubs"), hub => hub.Use(async (context, next) =>
 {
     if (OriginCheck.IsSameOrigin(context.Request)) await next(context);

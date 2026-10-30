@@ -1,7 +1,5 @@
-// Notes editor (C12). The document is an implicit list of blocks, like in Notion: each block has
-// an id, a type and plain Markdown text. The focused block shows its raw text; the others show
-// the inline Markdown rendered. Since C13 the document lives on the server and every open copy
-// is kept in sync through the kitchen hub; localStorage keeps a copy for working offline.
+// Notes editor: a list of blocks (id, type, Markdown text), like in Notion. The focused block shows
+// raw text, the others are rendered. Synced through the hub; localStorage keeps an offline copy.
 (() => {
     const root = document.getElementById('notes');
     if (!root) return;
@@ -20,7 +18,7 @@
     const lists = new Set(['bullet', 'numbered', 'todo']);
     let blocks = [];
     // The last document received from the server; what differs from it is not saved there yet.
-    // null until the first connection for notes saved by the C12 version, see open().
+    // null for notes saved before sync existed, see open().
     let synced = null;
     let focusedId = null;
     let saveTimer = null;
@@ -362,8 +360,7 @@
         saveSoon();
     });
 
-    // Sorting (F3). Blocks that change place slide there: their old position is measured first,
-    // then each one is animated from it to the new position (the FLIP technique).
+    // Blocks that change place slide there (FLIP: measure the old position, animate to the new one).
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
     function animated(change) {
@@ -469,10 +466,8 @@
         save();
     });
 
-    // Sync (C13). A device sends only what it changed since the last document it received
-    // (see NotesChange on the server). The server applies the change and sends the new document
-    // to every open copy; each copy puts its own unsent edits on top of it again, so edits of
-    // different blocks on two devices both survive.
+    // Sync: a device sends only its changes since the last document (see NotesChange). The server
+    // sends the result to every copy, and each copy puts its unsent edits back on top.
     function diff(base, current) {
         const before = new Map(base.map(item => [item.id, item]));
         const upserts = current.filter(item => {
@@ -530,10 +525,8 @@
         keep();
     }
 
-    // Changes from other devices are shown as they happen (C14): blocks slide to their new place
-    // (FLIP from F3), a new block fades in, a removed one fades out where it was, and a block
-    // whose text, type or check changed flashes. Only what differs from the previous screen is
-    // marked, so one's own edits, which are already on the screen, are not.
+    // Changes from other devices are animated: moved blocks slide, new ones fade in, removed ones
+    // fade out and edited ones flash. Own edits are already on screen, so they are not marked.
     function refresh(previous) {
         const active = document.activeElement;
         const current = blockOf(active);
@@ -662,8 +655,8 @@
         opening = true;
         try {
             const doc = await connection.invoke('OpenNotes', recipeId);
-            // Notes saved by the C12 version have no synced copy. If the server document was never
-            // saved they replace it; otherwise their blocks are added to it, so nothing is lost.
+            // Notes saved before sync existed: they replace an empty server document, otherwise their
+            // blocks are added to it.
             synced ??= doc.version === 0 ? doc : { version: 0, blocks: [] };
             adopt(doc);
             ready = true;
@@ -690,7 +683,7 @@
         sharedFocus = undefined;
         shareFocus();
     });
-    // The hub also sends the kitchen's recipe feed (C11); this page does not show it.
+    // The hub also sends the kitchen's recipe feed; this page ignores it.
     connection.on('changes', () => { });
     connection.onreconnecting(() => {
         ready = false;

@@ -75,7 +75,7 @@ export async function createDatabase(name) {
     };
 }
 
-// B8 tests get an own RabbitMQ virtual host in a container kept between runs, like PostgreSQL above.
+// RabbitMQ tests get their own virtual host in a container kept between runs.
 const rabbit = { container: 'recipe-manager-e2e-rabbitmq', host: '127.0.0.1', port: 55672, management: 55673, user: 'e2e', password: 'e2e' };
 const rabbitApi = (method, apiPath, body) => fetch(`http://${rabbit.host}:${rabbit.management}/api/${apiPath}`, {
     method, body: body && JSON.stringify(body),
@@ -116,7 +116,7 @@ export async function createVhost(name) {
 async function stop(child) {
     if (!child || child.exitCode !== null) return;
     const closed = new Promise(resolve => child.once('close', resolve));
-    child.kill(); // The owned dotnet process is launched directly, without a shell or shared server.
+    child.kill();
     await closed;
 }
 
@@ -247,7 +247,7 @@ export const test = base.extend({
         const tokenResponse = await request.get('/api/antiforgery');
         expect(tokenResponse.status()).toBe(200);
         const { requestToken, headerName } = await tokenResponse.json();
-        const headers = { [headerName]: requestToken }; // Kept in memory; never attached to reports.
+        const headers = { [headerName]: requestToken };
         const owned = { recipes: [], categories: [], ingredients: [] };
         const create = async (kind, fields) => {
             const response = await request.post('/api/' + kind, { headers, data: fields });

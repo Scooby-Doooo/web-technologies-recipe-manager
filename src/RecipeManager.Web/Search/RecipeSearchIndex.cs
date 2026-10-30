@@ -15,9 +15,8 @@ public record SearchHit(int Id, string Title, string CategoryName, int CookingTi
 
 public record SearchResult(int Total, IReadOnlyList<SearchHit> Hits);
 
-// Full-text search over recipes with Lucene.NET (B4). The index lives in memory: the database stays
-// the source of truth, and a kitchen's documents are (re)built from it on the first search after a
-// change. One shared index holds all kitchens; every query is limited to the kitchen of the request.
+// Full-text recipe search with Lucene.NET. The index is in memory; a kitchen's documents are rebuilt
+// from the database on the first search after a change. Queries are limited to one kitchen.
 public sealed class RecipeSearchIndex : IDisposable
 {
     private const LuceneVersion Version = LuceneVersion.LUCENE_48;
@@ -96,7 +95,7 @@ public sealed class RecipeSearchIndex : IDisposable
             if (IsCurrent(tenantId)) return;
             // Read the counter before the data: a save during the rebuild leaves the kitchen stale again.
             var version = _changes.GetValueOrDefault(tenantId);
-            // The context of the request is already filtered to this kitchen (B5).
+            // The request context is already filtered to this kitchen.
             var recipes = await context.Recipes.AsNoTracking()
                 .Include(recipe => recipe.Category)
                 .Include(recipe => recipe.RecipeIngredients).ThenInclude(item => item.Ingredient)

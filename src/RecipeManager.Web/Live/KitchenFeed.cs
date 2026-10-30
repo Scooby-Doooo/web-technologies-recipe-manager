@@ -5,11 +5,8 @@ namespace RecipeManager.Web.Live;
 // At is the server time in Unix milliseconds, so a client can tell how late an event arrived.
 public record KitchenEvent(long Id, string Type, int RecipeId, string Title, long At);
 
-// The latest recipe changes of every kitchen for the live page (C10). Each kitchen numbers its
-// own events, so a client asks for "everything after N" and the numbers reveal nothing about
-// other kitchens.
-// shortcut: kept in the memory of one process, so with several app instances each one sees only
-// its own saves; a shared message bus (Redis, a SignalR backplane) is the upgrade for that.
+// Recent recipe changes of each kitchen for the live page. Each kitchen numbers its own events,
+// so the numbers say nothing about other kitchens. Kept in memory, so it works with one app instance.
 public class KitchenFeed
 {
     private const int Capacity = 50;

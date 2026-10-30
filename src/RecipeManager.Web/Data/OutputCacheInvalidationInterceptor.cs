@@ -5,9 +5,8 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Data;
 
-// Removes cached API responses after any successful save, so both MVC forms and the API
-// invalidate the same cache. Recipe responses include category and ingredient names,
-// so changes to those entities also evict the recipe tag.
+// Evicts cached API responses after every save, from the forms or the API. Recipe responses
+// include category and ingredient names, so those changes evict recipes too.
 public class OutputCacheInvalidationInterceptor : SaveChangesInterceptor
 {
     public const string RecipesTag = "api-recipes";

@@ -1,5 +1,4 @@
-// Chat page of the AI assistant. The server answers with Server-Sent Events; fetch is used
-// instead of EventSource because the request is a POST with the conversation in its body.
+// Assistant chat. Uses fetch instead of EventSource because the request is a POST.
 (() => {
     const chat = document.getElementById('assistant-chat');
     const form = document.getElementById('assistant-form');

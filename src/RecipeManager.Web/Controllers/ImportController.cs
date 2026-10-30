@@ -7,7 +7,7 @@ using RecipeManager.Web.MealDb;
 
 namespace RecipeManager.Web.Controllers;
 
-// Search on TheMealDB and import a meal into the current kitchen (C8).
+// Search on TheMealDB and import into the current kitchen.
 [Authorize]
 public class ImportController : Controller
 {

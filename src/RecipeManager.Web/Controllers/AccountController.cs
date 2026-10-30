@@ -85,8 +85,7 @@ public class AccountController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    // There is no billing in this project: any member switches the kitchen's plan, and the feature
-    // flags configured for that plan apply from the next request.
+    // No billing here: any member can switch the kitchen's plan.
     [Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -208,8 +207,7 @@ public class AccountController : Controller
         };
     }
 
-    // The kitchen lives in the cookie's claims, so the cookie is reissued after it changes.
-    // Bearer tokens issued earlier keep their old kitchen until they expire.
+    // The kitchen is a cookie claim, so the cookie is reissued. Old bearer tokens keep the old kitchen.
     private async Task RefreshKitchenClaims(Tenant kitchen)
     {
         var identity = new ClaimsIdentity(User.Claims, CookieAuthenticationDefaults.AuthenticationScheme);

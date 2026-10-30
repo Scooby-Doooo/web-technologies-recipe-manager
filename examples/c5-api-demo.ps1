@@ -1,7 +1,7 @@
 param(
     [string]$BaseUrl = 'http://localhost:5105',
     [string]$ImagePath,
-    # API token from the account page of the web app (writes require a signed-in user).
+    # Token from the account page, needed for writes.
     [string]$Token = $env:RECIPE_API_TOKEN
 )
 
@@ -31,7 +31,7 @@ function Invoke-ApiRequest {
         [string]$Image = '',
         [switch]$WithoutToken
     )
-    # Files avoid PowerShell's native-command JSON quoting and keep tokens out of console output.
+    # JSON bodies go through files: PowerShell breaks quotes in native command arguments.
     $curlArguments = @('--silent', '--show-error', '--connect-timeout', '5', '--max-time', '30',
         '--request', $Method, '--cookie', $cookieFile, '--cookie-jar', $cookieFile,
         '--output', $responseFile, '--write-out', '%{http_code}', '--config', $authFile)

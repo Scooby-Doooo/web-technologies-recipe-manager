@@ -8,9 +8,8 @@ namespace RecipeManager.Web.Telegram;
 
 public record RecipeCreated(int RecipeId, int TenantId);
 
-// Sees every saved recipe, whether it came from an MVC form, the API, the MCP server or the
-// AI agent, and queues a Telegram notification (in memory or in RabbitMQ, B8). Sending happens
-// in the background, so a slow or failing Telegram never delays or breaks the save itself.
+// Queues a Telegram announcement for every new recipe, wherever it was created. Sending happens
+// in the background, so Telegram never slows down or breaks the save.
 public class RecipeCreatedNotifier : SaveChangesInterceptor
 {
     private readonly IRecipeCreatedPublisher _publisher;

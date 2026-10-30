@@ -1,5 +1,3 @@
-// The whole SPA talks to the server only through the JSON API of C5/B1/B4.
-
 export class ApiError extends Error {
     constructor(status, problem) {
         super(problem?.title ?? `The server answered ${status}.`);

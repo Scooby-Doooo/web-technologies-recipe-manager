@@ -4,8 +4,7 @@ import { api } from '../api.js';
 
 const PageSize = 12;
 
-// Without a query: the B1 pages of /api/recipes. With one: B4 full-text search, best match first.
-// The query lives in the address, so a search can be bookmarked and Back returns to it.
+// Without a query shows the API pages, with one uses full-text search. The query is kept in the URL.
 export default function RecipeList() {
     const [params, setParams] = useSearchParams();
     const q = params.get('q') ?? '';

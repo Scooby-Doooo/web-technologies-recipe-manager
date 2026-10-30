@@ -1,6 +1,5 @@
-// Live kitchen page (C10, C11): one feed of recipe changes, delivered by polling every second,
-// adaptive polling, long polling, a WebSocket or SignalR. Every way ends in receive(), so the
-// numbers on the page compare like with like.
+// Live page: the same feed through polling, adaptive polling, long polling, WebSocket or SignalR.
+// All of them end in receive(), so the numbers are comparable.
 (() => {
     const root = document.getElementById('live');
     if (!root) return;

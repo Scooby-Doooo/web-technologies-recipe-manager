@@ -5,8 +5,7 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Live;
 
-// Publishes every saved recipe change to the kitchen feed, whichever page, API or agent made it,
-// and pushes it to the kitchen's SignalR group (C11).
+// Sends every saved recipe change to the kitchen feed and to the kitchen's SignalR group.
 public class KitchenFeedInterceptor : SaveChangesInterceptor
 {
     private readonly KitchenFeed _feed;

@@ -1,7 +1,6 @@
 namespace RecipeManager.Web.Models;
 
-// The notes document of a recipe (C12), stored on the server since C13 so that every device
-// edits the same document. Belongs to the recipe's kitchen through the recipe.
+// The notes document of a recipe, shared by all devices.
 public class RecipeNotes
 {
     public int RecipeId { get; set; }

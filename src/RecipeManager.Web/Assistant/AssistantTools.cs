@@ -8,8 +8,7 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Assistant;
 
-// The functions the model may call. They run inside the signed-in user's request, so the
-// kitchen filters of ApplicationDbContext limit them to that user's kitchen.
+// Tools the model can call. They run in the user's request, so the kitchen filters apply.
 public class AssistantTools
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -134,8 +133,7 @@ public class AssistantTools
         };
     }
 
-    // The same rules as the MVC form and the API: model validation, an existing category of
-    // this kitchen and the Free plan limit.
+    // Same checks as the form and the API: validation, category of this kitchen, Free plan limit.
     private async Task<object> CreateAsync(JsonElement arguments)
     {
         if (!await _limit.CanAddRecipeAsync()) return new { error = _limit.Message };

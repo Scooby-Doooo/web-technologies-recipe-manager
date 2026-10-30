@@ -7,7 +7,7 @@ using RecipeManager.Web.Telegram;
 
 namespace RecipeManager.Web.Messaging;
 
-// Bound from the "RabbitMq" section (B8). Without Url the in-memory queue is used.
+// Bound from the "RabbitMq" section. Without Url the in-memory queue is used.
 public class RabbitMqOptions
 {
     // amqp://user:password@host:5672/vhost or amqps://… for a hosted broker (CloudAMQP).

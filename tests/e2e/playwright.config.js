@@ -15,6 +15,6 @@ export default defineConfig({
         channel: 'chrome',
         viewport: { width: 1280, height: 900 },
         screenshot: 'only-on-failure',
-        trace: 'off' // Traces can retain antiforgery tokens/cookies; route evidence contains no headers or bodies.
+        trace: 'off' // traces could store tokens and cookies
     }
 });

@@ -2,9 +2,8 @@ using Microsoft.AspNetCore.OutputCaching;
 
 namespace RecipeManager.Web.Data;
 
-// The default output cache policy skips signed-in requests. API data depends only on the
-// kitchen, so this policy caches GET/HEAD responses per kitchen regardless of the auth cookie
-// or token, and keeps the other default rules: only 200 responses and never responses that set cookies.
+// The default policy does not cache signed-in requests. API data depends only on the kitchen,
+// so responses are cached per kitchen instead. Only 200 responses without cookies are stored.
 public sealed class PublicApiCachePolicy : IOutputCachePolicy
 {
     public ValueTask CacheRequestAsync(OutputCacheContext context, CancellationToken cancellationToken)

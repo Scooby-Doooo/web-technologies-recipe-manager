@@ -1,4 +1,4 @@
-# SPA stage: build the React front end (F5) with Node.
+# Build the React SPA.
 FROM node:22-alpine AS spa
 WORKDIR /source/src/RecipeManager.Spa
 COPY src/RecipeManager.Spa/package.json src/RecipeManager.Spa/package-lock.json ./
@@ -24,8 +24,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 
-# Uploaded photos live in a directory that compose mounts as a volume. The database is PostgreSQL:
-# the db service of compose, or Supabase in the cloud, given by ConnectionStrings__DefaultConnection.
+# The photos folder is mounted as a volume in compose.
 RUN mkdir -p /app/wwwroot/uploads/recipes \
     && chown -R $APP_UID /app/wwwroot/uploads
 USER $APP_UID

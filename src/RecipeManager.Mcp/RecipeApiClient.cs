@@ -15,7 +15,7 @@ public record Recipe(int Id, string Title, string? Description, string Instructi
 
 public record Page<T>(IReadOnlyList<T> Items, int Skip, int Limit, string? NextLink);
 
-// Thin client for the Recipe Manager JSON API (C5). The MCP server never touches the database directly.
+// Client for the Recipe Manager JSON API; the MCP server never touches the database.
 public class RecipeApiClient
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -64,7 +64,7 @@ public class RecipeApiClient
         {
             if (response.IsSuccessStatusCode)
                 return (await response.Content.ReadFromJsonAsync<T>(Json, cancellationToken))!;
-            // Errors are turned into tool errors with the API's own explanation, so the agent can fix its input.
+            // API errors become tool errors with the API's message, so the caller can fix the input.
             throw new McpException(await DescribeError(response, cancellationToken));
         }
     }

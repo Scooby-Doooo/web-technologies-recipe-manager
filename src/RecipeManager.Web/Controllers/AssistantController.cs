@@ -28,9 +28,8 @@ public class AssistantController : Controller
         return View();
     }
 
-    // Streams the answer as Server-Sent Events: reasoning, tool_call, tool_result and content
-    // events while the agent works, then done (or error). The page reads them with fetch,
-    // because EventSource can only send GET requests without a body.
+    // Streams the answer as Server-Sent Events. The page reads them with fetch, because
+    // EventSource cannot send a POST with a body.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task Chat([FromBody] ChatRequest? request, [FromServices] AssistantAgent agent)

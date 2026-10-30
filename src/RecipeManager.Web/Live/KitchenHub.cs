@@ -7,9 +7,7 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Live;
 
-// SignalR version of the live feed (C11). Each connection joins the group of its kitchen, and
-// KitchenFeedInterceptor sends every change to that group as a "changes" message.
-// Since C13 the same hub keeps recipe notes in sync between devices.
+// SignalR hub: each connection joins its kitchen group for the live feed. It also syncs recipe notes.
 public class KitchenHub : Hub
 {
     private readonly KitchenFeed _feed;
@@ -37,22 +35,21 @@ public class KitchenHub : Hub
         await base.OnConnectedAsync();
     }
 
-    // After connecting or reconnecting the client asks for what it missed, in the same shape as the C10 answers.
+    // After (re)connecting the client asks for the events it missed.
     public object Since(long since)
     {
         var (last, events) = _feed.Since(TenantId, since);
         return new { last, events };
     }
 
-    // Opens the notes of a recipe: the connection gets every later change and the current document.
-    // A reconnect is a new connection, so the client opens the notes again after it.
+    // Joins the notes group and returns the current document. Called again after a reconnect.
     [Authorize]
     public async Task<object> OpenNotes(int recipeId)
     {
         var (_, version, blocks) = await LoadNotes(recipeId);
         await Groups.AddToGroupAsync(Context.ConnectionId, NotesGroup(recipeId));
         OpenedNotes.Add(recipeId);
-        // The copies already open answer with the block they are in (C14).
+        // The copies already open answer with the block they are in.
         await Clients.OthersInGroup(NotesGroup(recipeId)).SendAsync("joined");
         return new { version, blocks };
     }
@@ -80,8 +77,7 @@ public class KitchenHub : Hub
         ? opened!
         : Context.Items["notes"] = new HashSet<int>());
 
-    // Applies one editor's change and sends the new document to everyone who has the notes open,
-    // the sender included: that answer is how the sender learns its change is saved.
+    // Applies a change and sends the new document to everyone, the sender included (that is its confirmation).
     [Authorize]
     public async Task SaveNotes(int recipeId, NotesChange change)
     {

@@ -14,7 +14,7 @@ public record LookupResponse(int Id, string Name);
 
 public record PageResponse<T>(IReadOnlyList<T> Items, int Skip, int Limit, string? NextLink);
 
-// B4: a page of search hits, best match first, with the number of all matches.
+// A page of search hits, best match first.
 public record SearchResponse(string Query, int Total, IReadOnlyList<SearchHit> Items, int Skip, int Limit, string? NextLink);
 
 // Only editable fields are accepted; IDs, image paths and navigation properties are not bound.

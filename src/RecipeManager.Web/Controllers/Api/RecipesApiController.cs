@@ -52,8 +52,7 @@ public class RecipesApiController : ControllerBase
         return Ok(new PageResponse<RecipeResponse>(recipes.Select(ToResponse).ToList(), skip, limit, nextLink));
     }
 
-    // B4: full-text search with Lucene query syntax over title, ingredients, category, description
-    // and instructions, best match first. Words are joined with AND unless the query says otherwise.
+    // Full-text search with Lucene query syntax, best match first. Words are joined with AND.
     [AllowAnonymous]
     [HttpGet("search")]
     [OutputCache(PolicyName = OutputCacheInvalidationInterceptor.RecipesTag)]

@@ -6,9 +6,8 @@ using RecipeManager.Web.Live;
 
 namespace RecipeManager.Web.Controllers;
 
-// Live feed of recipe changes in the current kitchen (C10), delivered in three ways:
-// plain requests (short and adaptive polling decide the interval on the client),
-// long polling and a WebSocket. Anyone may watch, like anyone may browse the recipes.
+// Live feed of recipe changes in the current kitchen: plain requests for (adaptive) polling,
+// long polling and a WebSocket.
 public class LiveController : Controller
 {
     private static readonly JsonSerializerOptions SocketJson = new(JsonSerializerDefaults.Web);

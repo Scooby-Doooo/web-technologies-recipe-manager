@@ -3,9 +3,8 @@ using Microsoft.Extensions.Options;
 
 namespace RecipeManager.Web.Photos;
 
-// Where recipe photos are kept (C19). Recipe.ImagePath stores the address that pages show the
-// photo from: "/uploads/recipes/<guid>.png" for the local folder, or the public URL of the
-// photo in Supabase Storage. Every photo gets a new GUID name, so a photo is never overwritten.
+// Where recipe photos are stored. ImagePath is a local "/uploads/recipes/<guid>.png" path or a
+// public Supabase URL. Every photo gets a new name, so nothing is overwritten.
 public interface IPhotoStorage
 {
     // Throws PhotoStorageException when the photo could not be kept.

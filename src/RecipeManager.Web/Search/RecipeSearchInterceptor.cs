@@ -5,9 +5,7 @@ using RecipeManager.Web.Models;
 
 namespace RecipeManager.Web.Search;
 
-// Marks a kitchen's search documents stale after every successful save that changes what a recipe
-// document holds, whichever page, API, import or agent made it. Recipe documents include category
-// and ingredient names, so those changes count too.
+// Marks a kitchen's search index stale after saving recipes, categories, ingredients or their links.
 public class RecipeSearchInterceptor : SaveChangesInterceptor
 {
     private readonly RecipeSearchIndex _index;

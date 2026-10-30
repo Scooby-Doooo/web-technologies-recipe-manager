@@ -39,7 +39,7 @@ public class RecipeTools
     {
         limit = Math.Clamp(limit, 1, 50);
         var results = new List<RecipeSummary>();
-        // The API has no search endpoint, so the tool walks the paginated list (B1) and filters it.
+        // Walks the paginated list and applies the filters here.
         await foreach (var recipe in ReadAll<Recipe>("api/recipes", cancellationToken))
         {
             if (text != null && !recipe.Title.Contains(text, StringComparison.OrdinalIgnoreCase)
