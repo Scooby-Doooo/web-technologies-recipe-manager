@@ -42,6 +42,7 @@
 | C19. Статичний контент | Фото рецептів у Supabase Storage: браузер завантажує їх прямо звідти, картка F6 працює через CORS | розділ нижче |
 | B4. Пошук | `GET /api/recipes/search` на Lucene.NET: стемінг, вага полів, синтаксис Lucene, фільтр за часом, індекс оновлюється після змін | розділ нижче |
 | B8. Черги повідомлень | Оголошення про нові рецепти йдуть через RabbitMQ: durable-черги, publisher confirms, повтори із затримкою та черга невдалих | розділ нижче |
+| F5. SPA | Окремий проєкт на React + Vite (`/spa`): список і пошук рецептів, сторінка рецепта, створення й редагування з фото через JSON API | розділ нижче |
 | C11. SignalR | Хаб SignalR для тієї ж стрічки: групи кухонь, повторне з'єднання з довантаженням пропущеного, транспорти WebSockets, SSE і long polling | розділ нижче |
 | C10. WebSocket, Long Poll, Polling | Сторінка Live: зміни рецептів кухні в реальному часі чотирма способами і їх порівняння за трафіком і затримкою | розділ нижче |
 | C8. TheMealDB | Сторінка Import: живий пошук страв TheMealDB за назвою, категорією та інгредієнтом, превʼю й імпорт у кухню з фото | розділ нижче |
@@ -132,6 +133,12 @@ Docker Hub, а безкоштовний Web Service на Render запускає
 підтверджує повідомлення лише після успіху. Якщо Telegram не відповів, повідомлення через
 dead-letter потрапляє в чергу повтору з TTL і повертається назад; після кількох невдач
 воно лягає в окрему чергу `failed`. Без адреси брокера використовується черга в пам'яті.
+
+**F5. SPA.** `src/RecipeManager.Spa` — окремий проєкт на React 19 з React Router і Vite,
+який працює з сервером лише через JSON API: сторінки списку з B1, пошук з B4, CRUD і
+завантаження фото з C5. Збірка лягає у `wwwroot/spa`, і застосунок роздає її під `/spa`
+з того самого origin, тож SPA використовує звичайний вхід через Google й antiforgery-токен
+без CORS. Для глибоких посилань сервер повертає `index.html`, а маршрут розбирає React Router.
 
 **C11. SignalR.** `KitchenHub` додає кожне з'єднання до групи його кухні, а перехоплювач
 з C10 після збереження надсилає зміну цій групі. Після підключення й повторного
@@ -280,10 +287,12 @@ MVC-форми одразу видно в API. Окрема Postman-колекц
 
 ## Запуск
 
-Потрібні .NET 10 SDK і Docker Desktop (для бази PostgreSQL). З кореня репозиторію:
+Потрібні .NET 10 SDK, Node.js 22 (для SPA) і Docker Desktop (для бази PostgreSQL). З кореня
+репозиторію:
 
 ```
 docker compose up -d db
+cd src/RecipeManager.Spa && npm ci --ignore-scripts && npm run build && cd ../..
 dotnet restore
 dotnet tool restore
 dotnet ef database update --project src/RecipeManager.Web
@@ -317,6 +326,7 @@ cd tests/e2e && npm ci --ignore-scripts && npm test
 
 - `src/RecipeManager.Web` — застосунок (контролери, моделі, Razor-сторінки, міграції);
 - `src/RecipeManager.Mcp` — MCP-сервер (C22);
+- `src/RecipeManager.Spa` — SPA на React (F5);
 - `examples` — скрипт демонстрації API через curl;
 - `tests/postman` — тести API (QA1, B1, B9);
 - `tests/e2e` — E2E-тести (QA2).
