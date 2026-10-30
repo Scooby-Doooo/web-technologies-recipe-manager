@@ -4,6 +4,7 @@
 **/*.db
 **/*.db-*
 src/RecipeManager.Web/wwwroot/uploads/recipes/*
+src/RecipeManager.Web/wwwroot/spa/
 tests/
 examples/
 .git/

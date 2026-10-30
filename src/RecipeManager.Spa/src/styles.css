@@ -1,0 +1,19 @@
+.spa-card .card-img-top {
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+
+.spa-instructions {
+    white-space: pre-line;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .spa-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .spa-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 0.1);
+    }
+}

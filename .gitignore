@@ -505,3 +505,6 @@ appsettings.Local.json
 *.log
 .idea/
 .vscode/
+
+# Build output of the React SPA (F5); the Dockerfile and `npm run build` create it.
+src/RecipeManager.Web/wwwroot/spa/

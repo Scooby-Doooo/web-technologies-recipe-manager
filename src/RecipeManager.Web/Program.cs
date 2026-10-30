@@ -214,6 +214,9 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllers();
+// F5: the React SPA (src/RecipeManager.Spa) is built into wwwroot/spa. Its own router handles
+// /spa/recipes/12 and the like, so every such path that is not a file gets its index.html.
+app.MapFallbackToFile("/spa/{*path:nonfile}", "spa/index.html");
 // SignalR version of the live feed (C11). Its WebSocket transport needs the same Origin check as C10.
 app.UseWhen(context => context.Request.Path.StartsWithSegments("/hubs"), hub => hub.Use(async (context, next) =>
 {
