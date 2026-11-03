@@ -23,7 +23,8 @@ async function fakeOpenRouter() {
                 response.write(chunk({ role: 'assistant', reasoning: 'The user asks about ' }));
                 response.write(chunk({ reasoning: create ? 'saving a recipe.' : 'soups in the kitchen.' }));
                 const [name, args] = create
-                    ? ['create_recipe', JSON.stringify({ title: 'QA2 agent pancakes', instructions: 'Mix.\nFry.', cooking_time_minutes: 15, servings: 2, category_id: settings.categoryId })]
+                    ? ['create_recipe', JSON.stringify({ title: 'QA2 agent pancakes', instructions: 'Mix.\nFry.', cooking_time_minutes: 15, servings: 2, category_id: settings.categoryId,
+                        ingredients: [{ name: 'qa2 agent milk', quantity: '250', unit: 'ml' }, { name: 'QA2 agent egg', quantity: 2, unit: 'pcs' }] })]
                     : ['search_recipes', JSON.stringify({ query: 'soup' })];
                 // The arguments arrive in two pieces, as real models stream them.
                 response.write(chunk({ tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name, arguments: args.slice(0, 10) } }] }));
@@ -59,6 +60,8 @@ test('[AI-01] the assistant streams reasoning, tool calls and the answer from th
             // The model is told an id of Alice's own category, models send numbers as strings at times.
             if (user === alice) openRouter.settings.categoryId = String(category.id);
         }
+        // The model names this ingredient in another case: it is reused, not created twice.
+        expect((await alice.api.post('/api/ingredients', { name: 'QA2 Agent Milk' })).status()).toBe(201);
 
         // Free kitchens see the Premium page instead of the chat.
         expect((await alice.api.get('/Assistant')).status()).toBe(403);
@@ -98,6 +101,12 @@ test('[AI-01] the assistant streams reasoning, tool calls and the answer from th
         // The write tool used the same rules as the app: the recipe is in Alice's kitchen.
         const recipes = await (await alice.api.get('/api/recipes')).json();
         expect(recipes.map(recipe => recipe.title)).toContain('QA2 agent pancakes');
+        const pancakes = await (await alice.api.get(`/api/recipes/${recipes.find(recipe => recipe.title === 'QA2 agent pancakes').id}`)).json();
+        expect(pancakes.ingredients.map(({ name, quantity, unit }) => ({ name, quantity, unit }))).toEqual(expect.arrayContaining([
+            { name: 'QA2 Agent Milk', quantity: 250, unit: 'ml' }, { name: 'QA2 agent egg', quantity: 2, unit: 'pcs' }]));
+        expect(pancakes.ingredients).toHaveLength(2);
+        const milks = (await (await alice.api.get('/api/ingredients')).json()).filter(item => item.name.toLowerCase() === 'qa2 agent milk');
+        expect(milks).toHaveLength(1);
         expect((await (await bob.api.get('/api/recipes')).json()).map(recipe => recipe.title)).not.toContain('QA2 agent pancakes');
     } finally {
         await alice.context.close();
