@@ -55,7 +55,13 @@ public class AssistantTools
           "instructions": { "type": "string", "description": "Steps, one per line" },
           "cooking_time_minutes": { "type": "integer" },
           "servings": { "type": "integer" },
-          "category_id": { "type": "integer", "description": "Id from list_categories" }
+          "category_id": { "type": "integer", "description": "Id from list_categories" },
+          "ingredients": { "type": "array", "description": "Each ingredient once; new names are added to the kitchen",
+            "items": { "type": "object", "properties": {
+              "name": { "type": "string" },
+              "quantity": { "type": "number", "description": "Greater than 0" },
+              "unit": { "type": "string", "description": "e.g. g, ml, pcs, tbsp" }
+            }, "required": ["name", "quantity", "unit"] } }
         }, "required": ["title", "instructions", "cooking_time_minutes", "servings", "category_id"] } } }
     ]
     """)!;
@@ -151,10 +157,47 @@ public class AssistantTools
             return new { error = string.Join(" ", errors.Select(item => item.ErrorMessage)) };
         if (!await _context.Categories.AnyAsync(item => item.Id == recipe.CategoryId))
             return new { error = "No category with this id in the kitchen. Call list_categories first." };
+        if (await AddIngredientsAsync(recipe, arguments) is { } ingredientError) return new { error = ingredientError };
 
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync();
         return new { created = true, recipe.Id, recipe.Title, Url = $"/Recipes/Details/{recipe.Id}" };
+    }
+
+    // Matches kitchen ingredients by name, case-insensitive, like the TheMealDB import; unknown names are created.
+    private async Task<string?> AddIngredientsAsync(Recipe recipe, JsonElement arguments)
+    {
+        if (arguments.ValueKind != JsonValueKind.Object || !arguments.TryGetProperty("ingredients", out var items)
+            || items.ValueKind != JsonValueKind.Array) return null;
+        var lines = items.EnumerateArray().Select(item => (
+            Name: Text(item, "name")?.Trim() ?? string.Empty,
+            Quantity: Decimal(item, "quantity") ?? 0,
+            Unit: Text(item, "unit")?.Trim() ?? string.Empty)).ToList();
+        if (lines.Any(line => line.Name.Length is 0 or > 100))
+            return "Each ingredient needs a name of 1-100 characters.";
+        var keys = lines.Select(line => line.Name.ToLowerInvariant()).ToList();
+        if (keys.Distinct().Count() != keys.Count) return "List each ingredient once.";
+
+        var known = (await _context.Ingredients.Where(item => keys.Contains(item.Name.ToLower())).ToListAsync())
+            .GroupBy(item => item.Name.ToLowerInvariant()).ToDictionary(group => group.Key, group => group.First());
+        foreach (var line in lines)
+        {
+            var ingredient = known.GetValueOrDefault(line.Name.ToLowerInvariant()) ?? new Ingredient { Name = line.Name };
+            var item = new RecipeIngredient { Ingredient = ingredient, Quantity = line.Quantity, Unit = line.Unit };
+            var errors = new List<ValidationResult>();
+            if (!Validator.TryValidateObject(item, new ValidationContext(item), errors, validateAllProperties: true))
+                return $"{line.Name}: " + string.Join(" ", errors.Select(error => error.ErrorMessage));
+            recipe.RecipeIngredients.Add(item);
+        }
+        return null;
+    }
+
+    private static decimal? Decimal(JsonElement arguments, string name)
+    {
+        if (arguments.ValueKind != JsonValueKind.Object || !arguments.TryGetProperty(name, out var value)) return null;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number)) return number;
+        return value.ValueKind == JsonValueKind.String
+            && decimal.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture, out number) ? number : null;
     }
 
     private static string? Text(JsonElement arguments, string name) =>
