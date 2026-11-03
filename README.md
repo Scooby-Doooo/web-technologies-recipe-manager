@@ -160,6 +160,11 @@ Web Service. Диск на Render не зберігається між депл�
 на PostgreSQL у Supabase. Ключі Data Protection теж лежать у базі, щоб вхід не злітав
 після деплою. Секрети задані змінними середовища на Render.
 
+**C3. CI/CD.** Кожен push у `main` запускає GitHub Actions: спершу E2E-тести з
+PostgreSQL і RabbitMQ у Docker, потім збірку образу, push у Docker Hub і deploy hook
+Render з тегом цього коміту. Якщо тести падають, деплою немає. Pull request проходить
+лише тести.
+
 **C19. Фото в Supabase Storage.** На сервері фото зберігаються в bucket `recipe-photos`,
 а браузер завантажує їх звідти напряму. Локально, без ключа Supabase, фото лягають у
 `wwwroot/uploads`, як раніше. Щоб картку з F6 можна було зберегти, фото з іншого домену
@@ -244,4 +249,5 @@ dotnet run --project src/RecipeManager.Web --no-launch-profile -- --urls http://
 - `src/RecipeManager.Spa` — SPA на React (F5);
 - `src/RecipeManager.Mcp` — MCP-сервер (C22);
 - `tests/postman` і `tests/e2e` — тести;
+- `.github/workflows` — CI/CD (C3);
 - `examples` — демо API через curl.
