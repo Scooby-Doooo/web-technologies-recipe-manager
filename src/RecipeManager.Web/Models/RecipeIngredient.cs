@@ -15,7 +15,7 @@ public class RecipeIngredient
     [ValidateNever]
     public Ingredient Ingredient { get; set; } = null!;
 
-    [Range(typeof(decimal), "0.001", "1000000")]
+    [Range(typeof(decimal), "0.001", "1000000", ParseLimitsInInvariantCulture = true)]
     public decimal Quantity { get; set; }
 
     [Required]
